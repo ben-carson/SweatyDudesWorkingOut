@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, integer, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, integer, timestamp, real } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -37,6 +37,36 @@ export const challengeEntries = pgTable("challenge_entries", {
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
 });
 
+// Workout tracking tables
+export const exercises = pgTable("exercises", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull().unique(),
+  metricType: text("metric_type").notNull(), // 'count', 'weight', 'duration', 'distance'
+  unit: text("unit").notNull(), // 'reps', 'lbs', 'minutes', 'miles', 'kg', 'seconds'
+  createdAt: timestamp("created_at").notNull().default(sql`now()`),
+});
+
+export const workoutSessions = pgTable("workout_sessions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").references(() => users.id).notNull(),
+  startedAt: timestamp("started_at").notNull().default(sql`now()`),
+  endedAt: timestamp("ended_at"),
+  note: text("note"),
+  createdAt: timestamp("created_at").notNull().default(sql`now()`),
+});
+
+export const workoutSets = pgTable("workout_sets", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  sessionId: varchar("session_id").references(() => workoutSessions.id).notNull(),
+  exerciseId: varchar("exercise_id").references(() => exercises.id).notNull(),
+  reps: integer("reps"), // for count-based exercises
+  weight: real("weight"), // for weight-based exercises  
+  durationSec: integer("duration_sec"), // for duration-based exercises
+  distanceMeters: real("distance_meters"), // for distance-based exercises
+  note: text("note"),
+  createdAt: timestamp("created_at").notNull().default(sql`now()`),
+});
+
 // Insert schemas
 export const insertUserSchema = createInsertSchema(users).pick({
   username: true,
@@ -57,6 +87,22 @@ export const insertChallengeEntrySchema = createInsertSchema(challengeEntries).o
   createdAt: true,
 });
 
+export const insertExerciseSchema = createInsertSchema(exercises).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertWorkoutSessionSchema = createInsertSchema(workoutSessions).omit({
+  id: true,
+  createdAt: true,
+  startedAt: true, // auto-generated on creation
+});
+
+export const insertWorkoutSetSchema = createInsertSchema(workoutSets).omit({
+  id: true,
+  createdAt: true,
+});
+
 // Types
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
@@ -69,3 +115,12 @@ export type InsertChallengeParticipant = z.infer<typeof insertChallengeParticipa
 
 export type ChallengeEntry = typeof challengeEntries.$inferSelect;
 export type InsertChallengeEntry = z.infer<typeof insertChallengeEntrySchema>;
+
+export type Exercise = typeof exercises.$inferSelect;
+export type InsertExercise = z.infer<typeof insertExerciseSchema>;
+
+export type WorkoutSession = typeof workoutSessions.$inferSelect;
+export type InsertWorkoutSession = z.infer<typeof insertWorkoutSessionSchema>;
+
+export type WorkoutSet = typeof workoutSets.$inferSelect;
+export type InsertWorkoutSet = z.infer<typeof insertWorkoutSetSchema>;

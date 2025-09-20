@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button";
-import { Trophy, Users, User, BarChart3 } from "lucide-react";
+import { Dumbbell, Trophy, Users, User, BarChart3 } from "lucide-react";
 import { useState } from "react";
 
 interface NavigationItem {
@@ -15,9 +15,10 @@ interface MobileNavigationProps {
 }
 
 const navigationItems: NavigationItem[] = [
-  { id: 'challenges', label: 'Challenges', icon: Trophy, href: '/' },
-  { id: 'friends', label: 'Friends', icon: Users, href: '/friends' },
+  { id: 'workouts', label: 'Workouts', icon: Dumbbell, href: '/' },
   { id: 'progress', label: 'Progress', icon: BarChart3, href: '/progress' },
+  { id: 'challenges', label: 'Challenges', icon: Trophy, href: '/challenges' },
+  { id: 'friends', label: 'Friends', icon: Users, href: '/friends' },
   { id: 'profile', label: 'Profile', icon: User, href: '/profile' }
 ];
 

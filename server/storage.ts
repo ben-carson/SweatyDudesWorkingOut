@@ -2,7 +2,10 @@ import type {
   User, InsertUser, 
   Challenge, InsertChallenge,
   ChallengeParticipant, InsertChallengeParticipant,
-  ChallengeEntry, InsertChallengeEntry
+  ChallengeEntry, InsertChallengeEntry,
+  Exercise, InsertExercise,
+  WorkoutSession, InsertWorkoutSession,
+  WorkoutSet, InsertWorkoutSet
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 
@@ -11,6 +14,20 @@ export interface LeaderboardEntry {
   total: number;
   rank: number;
   deltaFromLeader: number;
+}
+
+export interface PersonalRecord {
+  exercise: Exercise;
+  value: number;
+  unit: string;
+  setId: string;
+  date: Date;
+}
+
+export interface ExerciseTimeseriesPoint {
+  date: Date;
+  maxValue: number;
+  totalVolume: number;
 }
 
 export interface IStorage {
@@ -37,6 +54,27 @@ export interface IStorage {
   
   // Leaderboard
   getLeaderboard(challengeId: string): Promise<LeaderboardEntry[]>;
+  
+  // Exercises
+  listExercises(): Promise<Exercise[]>;
+  createExercise(exercise: InsertExercise): Promise<Exercise>;
+  getExercise(id: string): Promise<Exercise | null>;
+  
+  // Workout Sessions
+  createSession(session: InsertWorkoutSession): Promise<WorkoutSession>;
+  listSessions(userId: string, options?: { limit?: number; before?: Date; after?: Date }): Promise<WorkoutSession[]>;
+  getSession(id: string): Promise<WorkoutSession | null>;
+  endSession(id: string): Promise<void>;
+  
+  // Workout Sets
+  addSet(set: InsertWorkoutSet): Promise<WorkoutSet>;
+  listSetsBySession(sessionId: string): Promise<WorkoutSet[]>;
+  listSetsByUser(userId: string, options?: { exerciseId?: string }): Promise<WorkoutSet[]>;
+  deleteSet(id: string): Promise<void>;
+  
+  // Analytics
+  getPersonalRecords(userId: string): Promise<PersonalRecord[]>;
+  getExerciseTimeseries(userId: string, exerciseId: string, granularity: 'day' | 'week'): Promise<ExerciseTimeseriesPoint[]>;
 }
 
 export class MemStorage implements IStorage {
@@ -44,6 +82,9 @@ export class MemStorage implements IStorage {
   private challenges: Map<string, Challenge> = new Map();
   private participants: Map<string, ChallengeParticipant> = new Map();
   private entries: Map<string, ChallengeEntry> = new Map();
+  private exercises: Map<string, Exercise> = new Map();
+  private workoutSessions: Map<string, WorkoutSession> = new Map();
+  private workoutSets: Map<string, WorkoutSet> = new Map();
 
   constructor() {
     this.createMockData();
@@ -106,6 +147,49 @@ export class MemStorage implements IStorage {
     ];
 
     entries.forEach(entry => this.entries.set(entry.id, entry));
+
+    // Add sample exercises
+    const exercises: Exercise[] = [
+      { id: 'ex1', name: 'Push-ups', metricType: 'count', unit: 'reps', createdAt: new Date() },
+      { id: 'ex2', name: 'Bench Press', metricType: 'weight', unit: 'lbs', createdAt: new Date() },
+      { id: 'ex3', name: 'Running', metricType: 'distance', unit: 'miles', createdAt: new Date() },
+      { id: 'ex4', name: 'Plank', metricType: 'duration', unit: 'seconds', createdAt: new Date() },
+      { id: 'ex5', name: 'Squats', metricType: 'count', unit: 'reps', createdAt: new Date() },
+    ];
+    
+    exercises.forEach(exercise => this.exercises.set(exercise.id, exercise));
+
+    // Add sample workout sessions
+    const sessions: WorkoutSession[] = [
+      { 
+        id: 'session1', 
+        userId: 'user1', 
+        startedAt: new Date('2025-09-19T09:00:00'), 
+        endedAt: new Date('2025-09-19T10:30:00'), 
+        note: 'Great upper body workout',
+        createdAt: new Date('2025-09-19T09:00:00')
+      },
+      { 
+        id: 'session2', 
+        userId: 'user1', 
+        startedAt: new Date('2025-09-20T08:00:00'), 
+        endedAt: null, 
+        note: null,
+        createdAt: new Date('2025-09-20T08:00:00')
+      },
+    ];
+    
+    sessions.forEach(session => this.workoutSessions.set(session.id, session));
+
+    // Add sample workout sets
+    const sets: WorkoutSet[] = [
+      { id: 'set1', sessionId: 'session1', exerciseId: 'ex1', reps: 25, weight: null, durationSec: null, distanceMeters: null, note: 'First set', createdAt: new Date('2025-09-19T09:15:00') },
+      { id: 'set2', sessionId: 'session1', exerciseId: 'ex1', reps: 20, weight: null, durationSec: null, distanceMeters: null, note: null, createdAt: new Date('2025-09-19T09:20:00') },
+      { id: 'set3', sessionId: 'session1', exerciseId: 'ex2', reps: 8, weight: 185, durationSec: null, distanceMeters: null, note: 'Personal best!', createdAt: new Date('2025-09-19T09:45:00') },
+      { id: 'set4', sessionId: 'session2', exerciseId: 'ex1', reps: 30, weight: null, durationSec: null, distanceMeters: null, note: null, createdAt: new Date('2025-09-20T08:15:00') },
+    ];
+    
+    sets.forEach(set => this.workoutSets.set(set.id, set));
   }
 
   // Users
@@ -251,6 +335,214 @@ export class MemStorage implements IStorage {
     });
     
     return leaderboardEntries;
+  }
+
+  // Exercises
+  async listExercises(): Promise<Exercise[]> {
+    return Array.from(this.exercises.values()).sort((a, b) => a.name.localeCompare(b.name));
+  }
+
+  async createExercise(exerciseData: InsertExercise): Promise<Exercise> {
+    const id = randomUUID();
+    const exercise: Exercise = {
+      id,
+      ...exerciseData,
+      createdAt: new Date(),
+    };
+    this.exercises.set(id, exercise);
+    return exercise;
+  }
+
+  async getExercise(id: string): Promise<Exercise | null> {
+    return this.exercises.get(id) || null;
+  }
+
+  // Workout Sessions
+  async createSession(sessionData: InsertWorkoutSession): Promise<WorkoutSession> {
+    const id = randomUUID();
+    const session: WorkoutSession = {
+      id,
+      ...sessionData,
+      note: sessionData.note || null,
+      startedAt: new Date(),
+      createdAt: new Date(),
+    };
+    this.workoutSessions.set(id, session);
+    return session;
+  }
+
+  async listSessions(userId: string, options?: { limit?: number; before?: Date; after?: Date }): Promise<WorkoutSession[]> {
+    let sessions = Array.from(this.workoutSessions.values())
+      .filter(s => s.userId === userId);
+    
+    if (options?.before) {
+      sessions = sessions.filter(s => s.startedAt < options.before!);
+    }
+    if (options?.after) {
+      sessions = sessions.filter(s => s.startedAt > options.after!);
+    }
+    
+    sessions = sessions.sort((a, b) => b.startedAt.getTime() - a.startedAt.getTime());
+    
+    if (options?.limit) {
+      sessions = sessions.slice(0, options.limit);
+    }
+    
+    return sessions;
+  }
+
+  async getSession(id: string): Promise<WorkoutSession | null> {
+    return this.workoutSessions.get(id) || null;
+  }
+
+  async endSession(id: string): Promise<void> {
+    const session = this.workoutSessions.get(id);
+    if (session) {
+      session.endedAt = new Date();
+      this.workoutSessions.set(id, session);
+    }
+  }
+
+  // Workout Sets
+  async addSet(setData: InsertWorkoutSet): Promise<WorkoutSet> {
+    const id = randomUUID();
+    const set: WorkoutSet = {
+      id,
+      ...setData,
+      reps: setData.reps || null,
+      weight: setData.weight || null,
+      durationSec: setData.durationSec || null,
+      distanceMeters: setData.distanceMeters || null,
+      note: setData.note || null,
+      createdAt: new Date(),
+    };
+    this.workoutSets.set(id, set);
+    return set;
+  }
+
+  async listSetsBySession(sessionId: string): Promise<WorkoutSet[]> {
+    return Array.from(this.workoutSets.values())
+      .filter(s => s.sessionId === sessionId)
+      .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+  }
+
+  async listSetsByUser(userId: string, options?: { exerciseId?: string }): Promise<WorkoutSet[]> {
+    // Get user's sessions first
+    const userSessions = Array.from(this.workoutSessions.values())
+      .filter(s => s.userId === userId)
+      .map(s => s.id);
+    
+    let sets = Array.from(this.workoutSets.values())
+      .filter(s => userSessions.includes(s.sessionId));
+    
+    if (options?.exerciseId) {
+      sets = sets.filter(s => s.exerciseId === options.exerciseId);
+    }
+    
+    return sets.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+  }
+
+  async deleteSet(id: string): Promise<void> {
+    this.workoutSets.delete(id);
+  }
+
+  // Analytics
+  async getPersonalRecords(userId: string): Promise<PersonalRecord[]> {
+    const userSets = await this.listSetsByUser(userId);
+    const exerciseRecords = new Map<string, PersonalRecord>();
+
+    for (const set of userSets) {
+      const exercise = this.exercises.get(set.exerciseId);
+      if (!exercise) continue;
+
+      let value: number | null = null;
+      
+      // Determine value based on exercise metric type
+      switch (exercise.metricType) {
+        case 'count':
+          value = set.reps;
+          break;
+        case 'weight':
+          value = set.weight;
+          break;
+        case 'duration':
+          value = set.durationSec;
+          break;
+        case 'distance':
+          value = set.distanceMeters;
+          break;
+      }
+
+      if (value === null) continue;
+
+      const existingRecord = exerciseRecords.get(exercise.id);
+      if (!existingRecord || value > existingRecord.value) {
+        exerciseRecords.set(exercise.id, {
+          exercise,
+          value,
+          unit: exercise.unit,
+          setId: set.id,
+          date: set.createdAt,
+        });
+      }
+    }
+
+    return Array.from(exerciseRecords.values()).sort((a, b) => a.exercise.name.localeCompare(b.exercise.name));
+  }
+
+  async getExerciseTimeseries(userId: string, exerciseId: string, granularity: 'day' | 'week'): Promise<ExerciseTimeseriesPoint[]> {
+    const sets = await this.listSetsByUser(userId, { exerciseId });
+    const exercise = this.exercises.get(exerciseId);
+    if (!exercise) return [];
+
+    const dataPoints = new Map<string, { maxValue: number; totalVolume: number; date: Date }>();
+
+    for (const set of sets) {
+      let value: number | null = null;
+      
+      switch (exercise.metricType) {
+        case 'count':
+          value = set.reps;
+          break;
+        case 'weight':
+          value = set.weight;
+          break;
+        case 'duration':
+          value = set.durationSec;
+          break;
+        case 'distance':
+          value = set.distanceMeters;
+          break;
+      }
+
+      if (value === null) continue;
+
+      // Create date key based on granularity
+      const date = new Date(set.createdAt);
+      let dateKey: string;
+      if (granularity === 'day') {
+        dateKey = date.toISOString().split('T')[0];
+      } else {
+        // Week granularity
+        const weekStart = new Date(date);
+        weekStart.setDate(date.getDate() - date.getDay());
+        dateKey = weekStart.toISOString().split('T')[0];
+      }
+
+      const existing = dataPoints.get(dateKey);
+      if (existing) {
+        existing.maxValue = Math.max(existing.maxValue, value);
+        existing.totalVolume += value;
+      } else {
+        dataPoints.set(dateKey, {
+          maxValue: value,
+          totalVolume: value,
+          date: new Date(dateKey),
+        });
+      }
+    }
+
+    return Array.from(dataPoints.values()).sort((a, b) => a.date.getTime() - b.date.getTime());
   }
 }
 

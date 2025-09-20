@@ -4,7 +4,10 @@ import { storage } from "./storage";
 import { 
   insertChallengeSchema, 
   insertChallengeEntrySchema,
-  insertChallengeParticipantSchema 
+  insertChallengeParticipantSchema,
+  insertExerciseSchema,
+  insertWorkoutSessionSchema,
+  insertWorkoutSetSchema
 } from "@shared/schema";
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -124,6 +127,176 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(users);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch users" });
+    }
+  });
+
+  // Exercises
+  app.get("/api/exercises", async (req, res) => {
+    try {
+      const exercises = await storage.listExercises();
+      res.json(exercises);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch exercises" });
+    }
+  });
+
+  app.post("/api/exercises", async (req, res) => {
+    try {
+      const validation = insertExerciseSchema.safeParse(req.body);
+      if (!validation.success) {
+        return res.status(400).json({ error: validation.error.errors });
+      }
+      
+      const exercise = await storage.createExercise(validation.data);
+      res.json(exercise);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to create exercise" });
+    }
+  });
+
+  app.get("/api/exercises/:id", async (req, res) => {
+    try {
+      const exercise = await storage.getExercise(req.params.id);
+      if (!exercise) {
+        return res.status(404).json({ error: "Exercise not found" });
+      }
+      res.json(exercise);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch exercise" });
+    }
+  });
+
+  // Workout Sessions
+  app.post("/api/workouts/sessions", async (req, res) => {
+    try {
+      const validation = insertWorkoutSessionSchema.safeParse(req.body);
+      if (!validation.success) {
+        return res.status(400).json({ error: validation.error.errors });
+      }
+      
+      const session = await storage.createSession(validation.data);
+      res.json(session);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to create session" });
+    }
+  });
+
+  app.get("/api/workouts/sessions", async (req, res) => {
+    try {
+      const { userId, limit, before, after } = req.query;
+      if (!userId) {
+        return res.status(400).json({ error: "userId is required" });
+      }
+      
+      const options: any = {};
+      if (limit) options.limit = parseInt(limit as string);
+      if (before) options.before = new Date(before as string);
+      if (after) options.after = new Date(after as string);
+      
+      const sessions = await storage.listSessions(userId as string, options);
+      res.json(sessions);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch sessions" });
+    }
+  });
+
+  app.get("/api/workouts/sessions/:id", async (req, res) => {
+    try {
+      const session = await storage.getSession(req.params.id);
+      if (!session) {
+        return res.status(404).json({ error: "Session not found" });
+      }
+      res.json(session);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch session" });
+    }
+  });
+
+  app.patch("/api/workouts/sessions/:id", async (req, res) => {
+    try {
+      await storage.endSession(req.params.id);
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to end session" });
+    }
+  });
+
+  // Workout Sets
+  app.post("/api/workouts/sessions/:sessionId/sets", async (req, res) => {
+    try {
+      const setData = {
+        ...req.body,
+        sessionId: req.params.sessionId,
+      };
+      
+      const validation = insertWorkoutSetSchema.safeParse(setData);
+      if (!validation.success) {
+        return res.status(400).json({ error: validation.error.errors });
+      }
+      
+      const set = await storage.addSet(validation.data);
+      res.json(set);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to add set" });
+    }
+  });
+
+  app.get("/api/workouts/sessions/:sessionId/sets", async (req, res) => {
+    try {
+      const sets = await storage.listSetsBySession(req.params.sessionId);
+      res.json(sets);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch sets" });
+    }
+  });
+
+  app.delete("/api/workouts/sets/:id", async (req, res) => {
+    try {
+      await storage.deleteSet(req.params.id);
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to delete set" });
+    }
+  });
+
+  // Analytics
+  app.get("/api/users/:userId/prs", async (req, res) => {
+    try {
+      const prs = await storage.getPersonalRecords(req.params.userId);
+      res.json(prs);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch personal records" });
+    }
+  });
+
+  app.get("/api/users/:userId/progress", async (req, res) => {
+    try {
+      const { exerciseId, granularity = 'day' } = req.query;
+      if (!exerciseId) {
+        return res.status(400).json({ error: "exerciseId is required" });
+      }
+      
+      const timeseries = await storage.getExerciseTimeseries(
+        req.params.userId, 
+        exerciseId as string, 
+        granularity as 'day' | 'week'
+      );
+      res.json(timeseries);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch progress data" });
+    }
+  });
+
+  app.get("/api/users/:userId/sets", async (req, res) => {
+    try {
+      const { exerciseId } = req.query;
+      const options: any = {};
+      if (exerciseId) options.exerciseId = exerciseId as string;
+      
+      const sets = await storage.listSetsByUser(req.params.userId, options);
+      res.json(sets);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch user sets" });
     }
   });
 
