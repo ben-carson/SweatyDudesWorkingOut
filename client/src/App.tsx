@@ -5,7 +5,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 
 // Pages
-import WorkoutFeed from "@/pages/WorkoutFeed";
+import ChallengesHome from "@/pages/ChallengesHome";
 import Friends from "@/pages/Friends";
 import Progress from "@/pages/Progress";
 import Profile from "@/pages/Profile";
@@ -18,7 +18,7 @@ import { useLocation } from "wouter";
 function Router() {
   return (
     <Switch>
-      <Route path="/" component={WorkoutFeed} />
+      <Route path="/" component={ChallengesHome} />
       <Route path="/friends" component={Friends} />
       <Route path="/progress" component={Progress} />
       <Route path="/profile" component={Profile} />
