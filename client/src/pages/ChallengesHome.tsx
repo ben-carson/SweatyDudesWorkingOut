@@ -132,7 +132,14 @@ function ChallengeCard({ challenge }: { challenge: Challenge }) {
 
 export default function ChallengesHome() {
   const { data: challenges, isLoading } = useQuery<Challenge[]>({
-    queryKey: ["/api/challenges", { userId: 'user1' }], // Mock current user
+    queryKey: ["/api/challenges", "user1"], // Mock current user
+    queryFn: async () => {
+      const response = await fetch(`/api/challenges?userId=user1`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch challenges');
+      }
+      return response.json();
+    },
   });
 
   const activeChallenges = challenges?.filter((c: Challenge) => c.status === 'active') || [];
