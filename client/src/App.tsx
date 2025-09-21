@@ -14,6 +14,8 @@ import NotFound from "@/pages/not-found";
 
 // Components
 import MobileNavigation from "@/components/MobileNavigation";
+import { ActiveWorkoutProvider } from "@/contexts/ActiveWorkoutContext";
+import { ActiveWorkoutIndicator } from "@/components/ActiveWorkoutBanner";
 import { useLocation } from "wouter";
 
 function Router() {
@@ -31,18 +33,24 @@ function Router() {
 
 function App() {
   const [location, setLocation] = useLocation();
+  const currentUserId = "user1"; // TODO: Replace with actual auth
 
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
-        <div className="relative min-h-screen">
-          <Router />
-          <MobileNavigation 
-            currentPath={location} 
-            onNavigate={(path) => setLocation(path)}
-          />
-        </div>
-        <Toaster />
+        <ActiveWorkoutProvider userId={currentUserId}>
+          {/* Cross-tab active workout indicator - shows on all pages */}
+          <ActiveWorkoutIndicator />
+          
+          <div className="relative min-h-screen">
+            <Router />
+            <MobileNavigation 
+              currentPath={location} 
+              onNavigate={(path) => setLocation(path)}
+            />
+          </div>
+          <Toaster />
+        </ActiveWorkoutProvider>
       </TooltipProvider>
     </QueryClientProvider>
   );
