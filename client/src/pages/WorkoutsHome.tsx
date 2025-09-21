@@ -76,10 +76,11 @@ export default function WorkoutsHome() {
   // Create session mutation
   const createSessionMutation = useMutation({
     mutationFn: async () => {
-      return apiRequest("/api/workouts/sessions", "POST", {
+      const response = await apiRequest("POST", "/api/workouts/sessions", {
         userId: currentUserId,
         note: "New workout session"
       });
+      return response.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/workouts/sessions", currentUserId] });
@@ -90,7 +91,8 @@ export default function WorkoutsHome() {
   // Quick log mutation
   const quickLogMutation = useMutation({
     mutationFn: async (data: { exerciseId: string; sessionId: string; values: any }) => {
-      return apiRequest(`/api/workouts/sessions/${data.sessionId}/sets`, "POST", data.values);
+      const response = await apiRequest("POST", `/api/workouts/sessions/${data.sessionId}/sets`, data.values);
+      return response.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/workouts/sessions", currentUserId] });
@@ -116,7 +118,7 @@ export default function WorkoutsHome() {
 
     if (!sessionId) {
       const newSession = await createSessionMutation.mutateAsync();
-      sessionId = (newSession as any).id;
+      sessionId = newSession.id;
     }
 
     // Prepare set data based on exercise type
