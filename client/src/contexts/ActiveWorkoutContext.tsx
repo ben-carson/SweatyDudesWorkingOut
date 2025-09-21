@@ -141,6 +141,9 @@ export function ActiveWorkoutProvider({ children, userId }: ActiveWorkoutProvide
     onSuccess: () => {
       // Invalidate relevant queries
       queryClient.invalidateQueries({ queryKey: ['/api/workouts/sessions'] });
+      if (activeSession) {
+        queryClient.invalidateQueries({ queryKey: ['/api/workouts/sessions', activeSession.id, 'sets'] });
+      }
       notifyTabs();
     },
   });
@@ -158,6 +161,9 @@ export function ActiveWorkoutProvider({ children, userId }: ActiveWorkoutProvide
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/workouts/sessions'] });
+      if (activeSession) {
+        queryClient.invalidateQueries({ queryKey: ['/api/workouts/sessions', activeSession.id, 'sets'] });
+      }
       notifyTabs();
     },
   });
@@ -172,6 +178,9 @@ export function ActiveWorkoutProvider({ children, userId }: ActiveWorkoutProvide
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/workouts/sessions'] });
+      if (activeSession) {
+        queryClient.invalidateQueries({ queryKey: ['/api/workouts/sessions', activeSession.id, 'sets'] });
+      }
       notifyTabs();
     },
   });

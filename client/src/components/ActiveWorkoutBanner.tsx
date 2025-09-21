@@ -151,7 +151,7 @@ export function ActiveWorkoutIndicator() {
         <span>•</span>
         <span>Active workout in progress</span>
         <Link 
-          href="/workouts" 
+          href="/" 
           className="ml-2 underline hover:no-underline"
           data-testid="link-return-workout"
         >

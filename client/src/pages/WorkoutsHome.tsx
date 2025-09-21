@@ -413,7 +413,8 @@ export default function WorkoutsHome() {
             </div>
           )}
         </CardContent>
-      </Card>
+        </Card>
+      )}
 
       {/* Recent Sessions & Active Challenges */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
