@@ -23,6 +23,7 @@ export default function WorkoutsHome() {
   const { toast } = useToast();
   const [isQuickLogging, setIsQuickLogging] = useState(false);
   const [selectedExercise, setSelectedExercise] = useState<string>("");
+  const [expandedSessionId, setExpandedSessionId] = useState<string | null>(null);
   const [quickLogValues, setQuickLogValues] = useState({
     reps: "",
     weight: "",
@@ -71,6 +72,18 @@ export default function WorkoutsHome() {
       if (!response.ok) throw new Error('Failed to fetch challenges');
       return response.json();
     }
+  });
+
+  // Fetch sets for expanded session
+  const { data: expandedSessionSets = [] } = useQuery<WorkoutSet[]>({
+    queryKey: ["/api/workouts/sessions", expandedSessionId, "sets"],
+    queryFn: async () => {
+      if (!expandedSessionId) return [];
+      const response = await fetch(`/api/workouts/sessions/${expandedSessionId}/sets`);
+      if (!response.ok) throw new Error('Failed to fetch session sets');
+      return response.json();
+    },
+    enabled: !!expandedSessionId
   });
 
   // Create session mutation
@@ -376,32 +389,78 @@ export default function WorkoutsHome() {
                 </p>
               ) : (
                 <div className="space-y-3">
-                  {recentSessions.map((session) => (
-                    <div 
-                      key={session.id} 
-                      className="flex items-center justify-between p-3 border rounded-lg"
-                      data-testid={`session-${session.id}`}
-                    >
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <Calendar className="w-4 h-4 text-muted-foreground" />
-                          <span className="font-medium">{formatDate(session.startedAt)}</span>
-                          <span className="text-sm text-muted-foreground">
-                            {formatTime(session.startedAt)}
-                          </span>
-                          {!session.endedAt && (
-                            <Badge variant="secondary">Active</Badge>
-                          )}
+                  {recentSessions.map((session) => {
+                    const isExpanded = expandedSessionId === session.id;
+                    const sessionSets = isExpanded ? expandedSessionSets : [];
+                    
+                    return (
+                      <div key={session.id} className="space-y-2">
+                        <div 
+                          className="flex items-center justify-between p-3 border rounded-lg"
+                          data-testid={`session-${session.id}`}
+                        >
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <Calendar className="w-4 h-4 text-muted-foreground" />
+                              <span className="font-medium">{formatDate(session.startedAt)}</span>
+                              <span className="text-sm text-muted-foreground">
+                                {formatTime(session.startedAt)}
+                              </span>
+                              {!session.endedAt && (
+                                <Badge variant="secondary">Active</Badge>
+                              )}
+                            </div>
+                            {session.note && (
+                              <p className="text-sm text-muted-foreground mt-1">{session.note}</p>
+                            )}
+                          </div>
+                          <Button 
+                            variant="ghost" 
+                            size="sm"
+                            onClick={() => setExpandedSessionId(isExpanded ? null : session.id)}
+                            data-testid={`button-view-session-${session.id}`}
+                          >
+                            {isExpanded ? 'Hide' : 'View'}
+                          </Button>
                         </div>
-                        {session.note && (
-                          <p className="text-sm text-muted-foreground mt-1">{session.note}</p>
+                        
+                        {/* Expanded Session Details */}
+                        {isExpanded && (
+                          <div className="ml-4 p-3 bg-muted/50 rounded-lg border">
+                            <h4 className="text-sm font-medium mb-2">Workout Sets</h4>
+                            {sessionSets.length === 0 ? (
+                              <p className="text-sm text-muted-foreground">No sets recorded</p>
+                            ) : (
+                              <div className="space-y-2">
+                                {sessionSets.map((set, index) => {
+                                  const exercise = exercises.find(ex => ex.id === set.exerciseId);
+                                  return (
+                                    <div key={set.id} className="flex items-center justify-between py-1 px-2 bg-background rounded border">
+                                      <div>
+                                        <span className="font-medium text-sm">
+                                          {exercise?.name || 'Unknown Exercise'}
+                                        </span>
+                                        <div className="text-xs text-muted-foreground">
+                                          {set.reps && `${set.reps} reps`}
+                                          {set.weight && ` • ${set.weight} ${exercise?.unit}`}
+                                          {set.durationSec && `${set.durationSec}s`}
+                                          {set.distanceMeters && `${set.distanceMeters}m`}
+                                          {set.note && ` • "${set.note}"`}
+                                        </div>
+                                      </div>
+                                      <span className="text-xs text-muted-foreground">
+                                        Set {index + 1}
+                                      </span>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
                         )}
                       </div>
-                      <Button variant="ghost" size="sm">
-                        View
-                      </Button>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </CardContent>
