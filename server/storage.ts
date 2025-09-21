@@ -30,6 +30,13 @@ export interface ExerciseTimeseriesPoint {
   totalVolume: number;
 }
 
+export interface TodayStats {
+  totalSets: number;
+  totalVolume: number;
+  workoutTime: number;
+  exerciseCount: number;
+}
+
 export interface IStorage {
   // Users
   getUser(id: string): Promise<User | undefined>;
@@ -82,6 +89,7 @@ export interface IStorage {
   // Analytics
   getPersonalRecords(userId: string): Promise<PersonalRecord[]>;
   getExerciseTimeseries(userId: string, exerciseId: string, granularity: 'day' | 'week'): Promise<ExerciseTimeseriesPoint[]>;
+  getTodayStats(userId: string): Promise<TodayStats>;
 }
 
 export class MemStorage implements IStorage {
@@ -649,6 +657,72 @@ export class MemStorage implements IStorage {
     }
 
     return Array.from(dataPoints.values()).sort((a, b) => a.date.getTime() - b.date.getTime());
+  }
+
+  async getTodayStats(userId: string): Promise<TodayStats> {
+    const today = new Date();
+    const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    const endOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1);
+
+    // Get today's sessions for the user
+    const todaySessions = await this.listSessions(userId, {
+      after: startOfDay,
+      before: endOfDay
+    });
+
+    let totalSets = 0;
+    let totalVolume = 0;
+    let totalWorkoutTime = 0;
+    const uniqueExercises = new Set<string>();
+
+    for (const session of todaySessions) {
+      // Calculate workout time
+      if (session.endedAt) {
+        const startTime = new Date(session.startedAt).getTime();
+        const endTime = new Date(session.endedAt).getTime();
+        totalWorkoutTime += Math.round((endTime - startTime) / (1000 * 60)); // Convert to minutes
+      } else if (session.startedAt) {
+        // For active sessions, calculate time since start
+        const startTime = new Date(session.startedAt).getTime();
+        const now = new Date().getTime();
+        totalWorkoutTime += Math.round((now - startTime) / (1000 * 60)); // Convert to minutes
+      }
+
+      // Get sets for this session
+      const sessionSets = await this.listSetsBySession(session.id);
+      totalSets += sessionSets.length;
+
+      // Calculate volume and track unique exercises
+      for (const set of sessionSets) {
+        uniqueExercises.add(set.exerciseId);
+        
+        // Calculate volume based on exercise type
+        const exercise = this.exercises.get(set.exerciseId);
+        if (exercise) {
+          switch (exercise.metricType) {
+            case 'count':
+              if (set.reps) totalVolume += set.reps;
+              break;
+            case 'weight':
+              if (set.weight && set.reps) totalVolume += set.weight * set.reps;
+              break;
+            case 'duration':
+              if (set.durationSec) totalVolume += set.durationSec;
+              break;
+            case 'distance':
+              if (set.distanceMeters) totalVolume += set.distanceMeters;
+              break;
+          }
+        }
+      }
+    }
+
+    return {
+      totalSets,
+      totalVolume: Math.round(totalVolume),
+      workoutTime: totalWorkoutTime,
+      exerciseCount: uniqueExercises.size
+    };
   }
 }
 

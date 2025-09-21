@@ -147,3 +147,11 @@ export type WorkoutSet = typeof workoutSets.$inferSelect;
 export type InsertWorkoutSet = z.infer<typeof insertWorkoutSetSchema>;
 export type UpdateWorkoutSession = z.infer<typeof updateWorkoutSessionSchema>;
 export type UpdateWorkoutSet = z.infer<typeof updateWorkoutSetSchema>;
+
+// Today's stats interface
+export interface TodayStats {
+  totalSets: number;
+  totalVolume: number;
+  workoutTime: number;
+  exerciseCount: number;
+}

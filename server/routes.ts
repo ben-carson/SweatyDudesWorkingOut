@@ -451,6 +451,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get("/api/users/:userId/today-stats", async (req, res) => {
+    try {
+      const todayStats = await storage.getTodayStats(req.params.userId);
+      res.json(todayStats);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch today's stats" });
+    }
+  });
+
   const httpServer = createServer(app);
 
   return httpServer;

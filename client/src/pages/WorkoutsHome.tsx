@@ -2,31 +2,41 @@ import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { Plus, Timer, TrendingUp, Trophy, Dumbbell, Calendar, Play } from "lucide-react";
-import type { Exercise, WorkoutSession, WorkoutSet, Challenge } from "@shared/schema";
+import { Plus, Timer, TrendingUp, Trophy, Dumbbell, Calendar, Play, Edit2, Trash2 } from "lucide-react";
+import type { Exercise, WorkoutSession, WorkoutSet, Challenge, TodayStats } from "@shared/schema";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Link } from "wouter";
 import { useActiveWorkout } from "@/contexts/ActiveWorkoutContext";
 import { ActiveWorkoutBanner } from "@/components/ActiveWorkoutBanner";
 import { ActiveSessionExercises } from "@/components/ActiveSessionExercises";
+import { SessionEditModal } from "@/components/SessionEditModal";
 
-interface TodayStats {
-  totalSets: number;
-  totalVolume: number;
-  workoutTime: number;
-}
 
 export default function WorkoutsHome() {
   const { toast } = useToast();
   const [isQuickLogging, setIsQuickLogging] = useState(false);
   const [selectedExercise, setSelectedExercise] = useState<string>("");
   const [expandedSessionId, setExpandedSessionId] = useState<string | null>(null);
+  const [editingSession, setEditingSession] = useState<WorkoutSession | null>(null);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [deletingSession, setDeletingSession] = useState<WorkoutSession | null>(null);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [quickLogValues, setQuickLogValues] = useState({
     reps: "",
     weight: "",
@@ -59,17 +69,13 @@ export default function WorkoutsHome() {
   // Get current active session
   const currentActiveSession = recentSessions.find(session => !session.endedAt);
 
-  // Fetch today's stats (simplified - would normally calculate from today's sets)
-  const { data: todayStats = { totalSets: 0, totalVolume: 0, workoutTime: 0 } } = useQuery<TodayStats>({
+  // Fetch today's stats
+  const { data: todayStats = { totalSets: 0, totalVolume: 0, workoutTime: 0, exerciseCount: 0 } } = useQuery<TodayStats>({
     queryKey: ["/api/users", currentUserId, "today-stats"],
     queryFn: async () => {
-      // This would normally fetch today's sets and calculate stats
-      // For now, return mock data based on recent activity
-      return {
-        totalSets: 12,
-        totalVolume: 2450,
-        workoutTime: 85
-      };
+      const response = await fetch(`/api/users/${currentUserId}/today-stats`);
+      if (!response.ok) throw new Error('Failed to fetch today stats');
+      return response.json();
     }
   });
 
@@ -177,6 +183,55 @@ export default function WorkoutsHome() {
     if (sessionId) {
       quickLogMutation.mutate({ exerciseId: selectedExercise, sessionId, values: setData });
     }
+  };
+
+  const handleEditSession = (session: WorkoutSession) => {
+    setEditingSession(session);
+    setIsEditModalOpen(true);
+  };
+
+  const handleEditModalClose = () => {
+    setIsEditModalOpen(false);
+    setEditingSession(null);
+  };
+
+  const handleDeleteSession = (session: WorkoutSession) => {
+    setDeletingSession(session);
+    setIsDeleteDialogOpen(true);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!deletingSession) return;
+    
+    try {
+      const response = await apiRequest("DELETE", `/api/workouts/sessions/${deletingSession.id}?userId=${currentUserId}`);
+      if (response.ok) {
+        // Invalidate relevant queries
+        queryClient.invalidateQueries({ queryKey: ["/api/workouts/sessions", currentUserId] });
+        queryClient.invalidateQueries({ queryKey: ["/api/users", currentUserId, "today-stats"] });
+        // Also invalidate expanded session sets if it was expanded
+        if (expandedSessionId === deletingSession.id) {
+          queryClient.invalidateQueries({ queryKey: ["/api/workouts/sessions", deletingSession.id, "sets"] });
+        }
+        
+        toast({ description: "Session deleted successfully!" });
+      } else {
+        throw new Error("Failed to delete session");
+      }
+    } catch (error: any) {
+      toast({ 
+        description: error?.message || "Failed to delete session",
+        variant: "destructive" 
+      });
+    } finally {
+      setIsDeleteDialogOpen(false);
+      setDeletingSession(null);
+    }
+  };
+
+  const handleDeleteCancel = () => {
+    setIsDeleteDialogOpen(false);
+    setDeletingSession(null);
   };
 
   const formatDate = (date: Date | string) => {
@@ -459,14 +514,32 @@ export default function WorkoutsHome() {
                               <p className="text-sm text-muted-foreground mt-1">{session.note}</p>
                             )}
                           </div>
-                          <Button 
-                            variant="ghost" 
-                            size="sm"
-                            onClick={() => setExpandedSessionId(isExpanded ? null : session.id)}
-                            data-testid={`button-view-session-${session.id}`}
-                          >
-                            {isExpanded ? 'Hide' : 'View'}
-                          </Button>
+                          <div className="flex gap-1">
+                            <Button 
+                              variant="ghost" 
+                              size="sm"
+                              onClick={() => setExpandedSessionId(isExpanded ? null : session.id)}
+                              data-testid={`button-view-session-${session.id}`}
+                            >
+                              {isExpanded ? 'Hide' : 'View'}
+                            </Button>
+                            <Button 
+                              variant="ghost" 
+                              size="sm"
+                              onClick={() => handleEditSession(session)}
+                              data-testid={`button-edit-session-${session.id}`}
+                            >
+                              <Edit2 className="w-4 h-4" />
+                            </Button>
+                            <Button 
+                              variant="ghost" 
+                              size="sm"
+                              onClick={() => handleDeleteSession(session)}
+                              data-testid={`button-delete-session-${session.id}`}
+                            >
+                              <Trash2 className="w-4 h-4 text-destructive" />
+                            </Button>
+                          </div>
                         </div>
                         
                         {/* Expanded Session Details */}
@@ -554,6 +627,43 @@ export default function WorkoutsHome() {
           </Card>
         </div>
       </div>
+
+      {/* Session Edit Modal */}
+      <SessionEditModal
+        session={editingSession}
+        open={isEditModalOpen}
+        onOpenChange={setIsEditModalOpen}
+        onSuccess={handleEditModalClose}
+      />
+
+      {/* Session Delete Confirmation Dialog */}
+      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <AlertDialogContent data-testid="dialog-delete-session">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Workout Session</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this workout session from {deletingSession && formatDate(deletingSession.startedAt)}?
+              <br /><br />
+              <strong>This action cannot be undone.</strong> All sets and exercises in this session will be permanently deleted.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel 
+              onClick={handleDeleteCancel}
+              data-testid="button-cancel-delete"
+            >
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={handleDeleteConfirm}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              data-testid="button-confirm-delete"
+            >
+              Delete Session
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
