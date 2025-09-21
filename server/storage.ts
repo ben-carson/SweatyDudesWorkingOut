@@ -68,10 +68,12 @@ export interface IStorage {
   updateSession(id: string, updates: UpdateWorkoutSession): Promise<WorkoutSession | null>;
   deleteSession(id: string): Promise<void>;
   endSession(id: string): Promise<void>;
+  getSessionWithOwnership(id: string, userId: string): Promise<WorkoutSession | null>;
   
   // Workout Sets
   addSet(set: InsertWorkoutSet): Promise<WorkoutSet>;
   getSet(id: string): Promise<WorkoutSet | null>;
+  getSetWithOwnership(id: string, userId: string): Promise<WorkoutSet | null>;
   updateSet(id: string, updates: UpdateWorkoutSet): Promise<WorkoutSet | null>;
   listSetsBySession(sessionId: string): Promise<WorkoutSet[]>;
   listSetsByUser(userId: string, options?: { exerciseId?: string }): Promise<WorkoutSet[]>;
@@ -401,6 +403,13 @@ export class MemStorage implements IStorage {
     return this.workoutSessions.get(id) || null;
   }
 
+  // Ownership validation helper
+  async getSessionWithOwnership(id: string, userId: string): Promise<WorkoutSession | null> {
+    const session = this.workoutSessions.get(id);
+    if (!session || session.userId !== userId) return null;
+    return session;
+  }
+
   async endSession(id: string): Promise<void> {
     const session = this.workoutSessions.get(id);
     if (session) {
@@ -480,6 +489,17 @@ export class MemStorage implements IStorage {
 
   async getSet(id: string): Promise<WorkoutSet | null> {
     return this.workoutSets.get(id) || null;
+  }
+
+  // Ownership validation for sets
+  async getSetWithOwnership(id: string, userId: string): Promise<WorkoutSet | null> {
+    const set = this.workoutSets.get(id);
+    if (!set) return null;
+    
+    const session = this.workoutSessions.get(set.sessionId);
+    if (!session || session.userId !== userId) return null;
+    
+    return set;
   }
 
   async updateSet(id: string, updates: UpdateWorkoutSet): Promise<WorkoutSet | null> {

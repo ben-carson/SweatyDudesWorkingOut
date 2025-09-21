@@ -204,9 +204,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/workouts/sessions/:id", async (req, res) => {
     try {
-      const session = await storage.getSession(req.params.id);
+      const { userId } = req.query;
+      if (!userId) {
+        return res.status(400).json({ error: "userId is required" });
+      }
+      
+      const session = await storage.getSessionWithOwnership(req.params.id, userId as string);
       if (!session) {
-        return res.status(404).json({ error: "Session not found" });
+        return res.status(404).json({ error: "Session not found or access denied" });
       }
       res.json(session);
     } catch (error) {
@@ -217,6 +222,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Enhanced session update endpoint
   app.patch("/api/workouts/sessions/:id", async (req, res) => {
     try {
+      const { userId } = req.query;
+      if (!userId) {
+        return res.status(400).json({ error: "userId is required" });
+      }
+      
+      // Check ownership before any operation
+      const existingSession = await storage.getSessionWithOwnership(req.params.id, userId as string);
+      if (!existingSession) {
+        return res.status(404).json({ error: "Session not found or access denied" });
+      }
+      
       // Special case: if action is "end", just end the session
       if (req.body.action === "end") {
         await storage.endSession(req.params.id);
@@ -248,6 +264,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Delete session endpoint
   app.delete("/api/workouts/sessions/:id", async (req, res) => {
     try {
+      const { userId } = req.query;
+      if (!userId) {
+        return res.status(400).json({ error: "userId is required" });
+      }
+      
+      // Check ownership before deletion
+      const existingSession = await storage.getSessionWithOwnership(req.params.id, userId as string);
+      if (!existingSession) {
+        return res.status(404).json({ error: "Session not found or access denied" });
+      }
+      
       await storage.deleteSession(req.params.id);
       res.json({ success: true });
     } catch (error) {
@@ -319,6 +346,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Update set endpoint
   app.patch("/api/workouts/sets/:id", async (req, res) => {
     try {
+      const { userId } = req.query;
+      if (!userId) {
+        return res.status(400).json({ error: "userId is required" });
+      }
+      
+      // Check ownership before any operation
+      const existingSet = await storage.getSetWithOwnership(req.params.id, userId as string);
+      if (!existingSet) {
+        return res.status(404).json({ error: "Set not found or access denied" });
+      }
+      
       // Reject attempts to change immutable fields
       if (req.body.sessionId) {
         return res.status(400).json({ error: "sessionId cannot be updated" });
@@ -354,6 +392,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.delete("/api/workouts/sets/:id", async (req, res) => {
     try {
+      const { userId } = req.query;
+      if (!userId) {
+        return res.status(400).json({ error: "userId is required" });
+      }
+      
+      // Check ownership before deletion
+      const existingSet = await storage.getSetWithOwnership(req.params.id, userId as string);
+      if (!existingSet) {
+        return res.status(404).json({ error: "Set not found or access denied" });
+      }
+      
       await storage.deleteSet(req.params.id);
       res.json({ success: true });
     } catch (error) {
