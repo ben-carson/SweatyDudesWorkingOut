@@ -26,6 +26,8 @@ import { useActiveWorkout } from "@/contexts/ActiveWorkoutContext";
 import { ActiveWorkoutBanner } from "@/components/ActiveWorkoutBanner";
 import { ActiveSessionExercises } from "@/components/ActiveSessionExercises";
 import { SessionEditModal } from "@/components/SessionEditModal";
+import { AddSetModal } from "@/components/AddSetModal";
+import { EditSetModal } from "@/components/EditSetModal";
 
 
 export default function WorkoutsHome() {
@@ -100,12 +102,12 @@ export default function WorkoutsHome() {
   const { data: expandedSessionSets = [] } = useQuery<WorkoutSet[]>({
     queryKey: ["/api/workouts/sessions", expandedSessionId, "sets"],
     queryFn: async () => {
-      if (!expandedSessionId) return [];
+      if (!expandedSessionId || !currentUserId) return [];
       const response = await fetch(`/api/workouts/sessions/${expandedSessionId}/sets?userId=${currentUserId}`);
       if (!response.ok) throw new Error('Failed to fetch session sets');
       return response.json();
     },
-    enabled: !!expandedSessionId
+    enabled: !!expandedSessionId && !!currentUserId
   });
 
   // Create session mutation
@@ -830,6 +832,30 @@ export default function WorkoutsHome() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Add Set Modal */}
+      <AddSetModal
+        open={isAddSetModalOpen}
+        onOpenChange={setIsAddSetModalOpen}
+        sessionId={addingSetToSession}
+        preSelectedExerciseId={addingSetToExercise?.exerciseId}
+        currentUserId={currentUserId}
+        onSuccess={() => {
+          setAddingSetToSession(null);
+          setAddingSetToExercise(null);
+        }}
+      />
+
+      {/* Edit Set Modal */}
+      <EditSetModal
+        open={isEditSetModalOpen}
+        onOpenChange={setIsEditSetModalOpen}
+        set={editingSet}
+        currentUserId={currentUserId}
+        onSuccess={() => {
+          setEditingSet(null);
+        }}
+      />
     </div>
   );
 }
