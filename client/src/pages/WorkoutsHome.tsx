@@ -7,11 +7,14 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { Plus, Timer, TrendingUp, Trophy, Dumbbell, Calendar } from "lucide-react";
+import { Plus, Timer, TrendingUp, Trophy, Dumbbell, Calendar, Play } from "lucide-react";
 import type { Exercise, WorkoutSession, WorkoutSet, Challenge } from "@shared/schema";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Link } from "wouter";
+import { useActiveWorkout } from "@/contexts/ActiveWorkoutContext";
+import { ActiveWorkoutBanner } from "@/components/ActiveWorkoutBanner";
+import { ActiveSessionExercises } from "@/components/ActiveSessionExercises";
 
 interface TodayStats {
   totalSets: number;
@@ -34,6 +37,9 @@ export default function WorkoutsHome() {
 
   // Mock current user
   const currentUserId = "user1";
+  
+  // Use active workout context
+  const { activeSession, startWorkout } = useActiveWorkout();
 
   // Fetch exercises for quick log dropdown
   const { data: exercises = [] } = useQuery<Exercise[]>({
@@ -185,6 +191,9 @@ export default function WorkoutsHome() {
 
   return (
     <div className="flex flex-col gap-6 p-4 max-w-4xl mx-auto">
+      {/* Active Workout Banner - shown when there's an active session */}
+      <ActiveWorkoutBanner />
+      
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -192,30 +201,19 @@ export default function WorkoutsHome() {
             SweatyDudes Workouts
           </h1>
           <p className="text-muted-foreground">
-            {currentActiveSession 
-              ? `Active workout started ${formatTime(currentActiveSession.startedAt)}`
+            {activeSession 
+              ? `Active workout started ${formatTime(activeSession.startedAt)}`
               : "Track your personal fitness journey"
             }
           </p>
         </div>
         <div className="flex gap-2">
-          {currentActiveSession ? (
+          {!activeSession && (
             <Button 
-              onClick={() => endSessionMutation.mutate(currentActiveSession.id)}
-              disabled={endSessionMutation.isPending}
-              variant="outline"
-              data-testid="button-end-workout"
-            >
-              <Timer className="w-4 h-4 mr-2" />
-              End Workout
-            </Button>
-          ) : (
-            <Button 
-              onClick={() => createSessionMutation.mutate()}
-              disabled={createSessionMutation.isPending}
+              onClick={() => startWorkout("New workout session")}
               data-testid="button-start-workout"
             >
-              <Plus className="w-4 h-4 mr-2" />
+              <Play className="w-4 h-4 mr-2" />
               Start Workout
             </Button>
           )}
@@ -258,8 +256,14 @@ export default function WorkoutsHome() {
         </Card>
       </div>
 
-      {/* Quick Log Section */}
-      <Card>
+      {/* Active Session Exercises - shown when there's an active session */}
+      {activeSession && (
+        <ActiveSessionExercises />
+      )}
+
+      {/* Quick Log Section - shown when no active session */}
+      {!activeSession && (
+        <Card>
         <CardHeader>
           <CardTitle>Quick Log</CardTitle>
           <CardDescription>
