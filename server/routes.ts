@@ -323,6 +323,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/workouts/sessions/:sessionId/sets", async (req, res) => {
     try {
+      const { userId } = req.query;
+      if (!userId) {
+        return res.status(400).json({ error: "userId is required" });
+      }
+      
+      // Verify session ownership before returning sets
+      const session = await storage.getSessionWithOwnership(req.params.sessionId, userId as string);
+      if (!session) {
+        return res.status(404).json({ error: "Session not found or access denied" });
+      }
+      
       const sets = await storage.listSetsBySession(req.params.sessionId);
       res.json(sets);
     } catch (error) {

@@ -37,6 +37,13 @@ export default function WorkoutsHome() {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [deletingSession, setDeletingSession] = useState<WorkoutSession | null>(null);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [deletingSet, setDeletingSet] = useState<WorkoutSet | null>(null);
+  const [isDeleteSetDialogOpen, setIsDeleteSetDialogOpen] = useState(false);
+  const [editingSet, setEditingSet] = useState<WorkoutSet | null>(null);
+  const [isEditSetModalOpen, setIsEditSetModalOpen] = useState(false);
+  const [addingSetToSession, setAddingSetToSession] = useState<string | null>(null);
+  const [addingSetToExercise, setAddingSetToExercise] = useState<{ sessionId: string, exerciseId: string } | null>(null);
+  const [isAddSetModalOpen, setIsAddSetModalOpen] = useState(false);
   const [quickLogValues, setQuickLogValues] = useState({
     reps: "",
     weight: "",
@@ -94,7 +101,7 @@ export default function WorkoutsHome() {
     queryKey: ["/api/workouts/sessions", expandedSessionId, "sets"],
     queryFn: async () => {
       if (!expandedSessionId) return [];
-      const response = await fetch(`/api/workouts/sessions/${expandedSessionId}/sets`);
+      const response = await fetch(`/api/workouts/sessions/${expandedSessionId}/sets?userId=${currentUserId}`);
       if (!response.ok) throw new Error('Failed to fetch session sets');
       return response.json();
     },
@@ -232,6 +239,54 @@ export default function WorkoutsHome() {
   const handleDeleteCancel = () => {
     setIsDeleteDialogOpen(false);
     setDeletingSession(null);
+  };
+
+  // Enhanced Exercise Management Handlers
+  const handleAddSetToSession = (session: WorkoutSession) => {
+    setAddingSetToSession(session.id);
+    setAddingSetToExercise(null);
+    setIsAddSetModalOpen(true);
+  };
+
+  const handleAddSetToExercise = (sessionId: string, exerciseId: string) => {
+    setAddingSetToSession(sessionId);
+    setAddingSetToExercise({ sessionId, exerciseId });
+    setIsAddSetModalOpen(true);
+  };
+
+  const handleEditSet = (set: WorkoutSet) => {
+    setEditingSet(set);
+    setIsEditSetModalOpen(true);
+  };
+
+  const handleDeleteSet = (set: WorkoutSet) => {
+    setDeletingSet(set);
+    setIsDeleteSetDialogOpen(true);
+  };
+
+  const handleDeleteSetConfirm = async () => {
+    if (!deletingSet) return;
+
+    try {
+      const response = await apiRequest("DELETE", `/api/workouts/sets/${deletingSet.id}?userId=${currentUserId}`);
+      if (response.ok) {
+        // Invalidate relevant queries
+        queryClient.invalidateQueries({ queryKey: ["/api/workouts/sessions", deletingSet.sessionId, "sets"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/users", currentUserId, "today-stats"] });
+        
+        toast({ description: "Set deleted successfully!" });
+      } else {
+        throw new Error("Failed to delete set");
+      }
+    } catch (error: any) {
+      toast({ 
+        description: error?.message || "Failed to delete set",
+        variant: "destructive" 
+      });
+    } finally {
+      setIsDeleteSetDialogOpen(false);
+      setDeletingSet(null);
+    }
   };
 
   const formatDate = (date: Date | string) => {
@@ -542,36 +597,115 @@ export default function WorkoutsHome() {
                           </div>
                         </div>
                         
-                        {/* Expanded Session Details */}
+                        {/* Enhanced Expanded Session Details */}
                         {isExpanded && (
-                          <div className="ml-4 p-3 bg-muted/50 rounded-lg border">
-                            <h4 className="text-sm font-medium mb-2">Workout Sets</h4>
+                          <div className="ml-4 p-4 bg-muted/50 rounded-lg border">
+                            <div className="flex items-center justify-between mb-3">
+                              <h4 className="text-sm font-medium">Workout Details</h4>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleAddSetToSession(session)}
+                                data-testid={`button-add-set-${session.id}`}
+                              >
+                                <Plus className="w-3 h-3 mr-1" />
+                                Add Set
+                              </Button>
+                            </div>
+                            
                             {sessionSets.length === 0 ? (
-                              <p className="text-sm text-muted-foreground">No sets recorded</p>
+                              <p className="text-sm text-muted-foreground py-2">No sets recorded</p>
                             ) : (
-                              <div className="space-y-2">
-                                {sessionSets.map((set, index) => {
-                                  const exercise = exercises.find(ex => ex.id === set.exerciseId);
-                                  return (
-                                    <div key={set.id} className="flex items-center justify-between py-1 px-2 bg-background rounded border">
-                                      <div>
-                                        <span className="font-medium text-sm">
-                                          {exercise?.name || 'Unknown Exercise'}
-                                        </span>
-                                        <div className="text-xs text-muted-foreground">
-                                          {set.reps && `${set.reps} reps`}
-                                          {set.weight && ` • ${set.weight} ${exercise?.unit}`}
-                                          {set.durationSec && `${set.durationSec}s`}
-                                          {set.distanceMeters && `${set.distanceMeters}m`}
-                                          {set.note && ` • "${set.note}"`}
+                              <div className="space-y-4">
+                                {/* Group sets by exercise */}
+                                {(() => {
+                                  const setsByExercise = sessionSets.reduce((groups, set) => {
+                                    const exerciseId = set.exerciseId;
+                                    if (!groups[exerciseId]) {
+                                      groups[exerciseId] = [];
+                                    }
+                                    groups[exerciseId].push(set);
+                                    return groups;
+                                  }, {} as Record<string, typeof sessionSets>);
+
+                                  return Object.entries(setsByExercise).map(([exerciseId, exerciseSets]) => {
+                                    const exercise = exercises.find(ex => ex.id === exerciseId);
+                                    const exerciseName = exercise?.name || 'Unknown Exercise';
+                                    
+                                    // Calculate exercise summary
+                                    const totalSets = exerciseSets.length;
+                                    const totalReps = exerciseSets.reduce((sum, set) => sum + (set.reps || 0), 0);
+                                    const maxWeight = exerciseSets.reduce((max, set) => Math.max(max, set.weight || 0), 0);
+                                    const totalDuration = exerciseSets.reduce((sum, set) => sum + (set.durationSec || 0), 0);
+                                    const totalDistance = exerciseSets.reduce((sum, set) => sum + (set.distanceMeters || 0), 0);
+
+                                    return (
+                                      <div key={exerciseId} className="space-y-2">
+                                        <div className="flex items-center justify-between">
+                                          <div>
+                                            <h5 className="font-medium text-sm">{exerciseName}</h5>
+                                            <div className="text-xs text-muted-foreground">
+                                              {totalSets} set{totalSets !== 1 ? 's' : ''}
+                                              {totalReps > 0 && ` • ${totalReps} total reps`}
+                                              {maxWeight > 0 && ` • max ${maxWeight} ${exercise?.unit}`}
+                                              {totalDuration > 0 && ` • ${totalDuration}s total`}
+                                              {totalDistance > 0 && ` • ${totalDistance}m total`}
+                                            </div>
+                                          </div>
+                                          <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={() => handleAddSetToExercise(session.id, exerciseId)}
+                                            data-testid={`button-add-set-exercise-${exerciseId}`}
+                                          >
+                                            <Plus className="w-3 h-3" />
+                                          </Button>
+                                        </div>
+                                        
+                                        <div className="pl-3 space-y-1">
+                                          {exerciseSets.map((set, setIndex) => (
+                                            <div key={set.id} className="flex items-center justify-between py-2 px-3 bg-background rounded border-l-2 border-l-primary/20">
+                                              <div className="flex-1">
+                                                <div className="text-sm">
+                                                  <span className="font-medium">Set {setIndex + 1}</span>
+                                                  <span className="text-muted-foreground ml-2">
+                                                    {set.reps && `${set.reps} reps`}
+                                                    {set.weight && ` @ ${set.weight} ${exercise?.unit}`}
+                                                    {set.durationSec && `${set.durationSec}s`}
+                                                    {set.distanceMeters && `${set.distanceMeters}m`}
+                                                  </span>
+                                                </div>
+                                                {set.note && (
+                                                  <div className="text-xs text-muted-foreground mt-1">
+                                                    "{set.note}"
+                                                  </div>
+                                                )}
+                                              </div>
+                                              <div className="flex gap-1">
+                                                <Button
+                                                  variant="ghost"
+                                                  size="sm"
+                                                  onClick={() => handleEditSet(set)}
+                                                  data-testid={`button-edit-set-${set.id}`}
+                                                >
+                                                  <Edit2 className="w-3 h-3" />
+                                                </Button>
+                                                <Button
+                                                  variant="ghost"
+                                                  size="sm"
+                                                  onClick={() => handleDeleteSet(set)}
+                                                  data-testid={`button-delete-set-${set.id}`}
+                                                >
+                                                  <Trash2 className="w-3 h-3 text-destructive" />
+                                                </Button>
+                                              </div>
+                                            </div>
+                                          ))}
                                         </div>
                                       </div>
-                                      <span className="text-xs text-muted-foreground">
-                                        Set {index + 1}
-                                      </span>
-                                    </div>
-                                  );
-                                })}
+                                    );
+                                  });
+                                })()}
                               </div>
                             )}
                           </div>
@@ -660,6 +794,38 @@ export default function WorkoutsHome() {
               data-testid="button-confirm-delete"
             >
               Delete Session
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Set Delete Confirmation Dialog */}
+      <AlertDialog open={isDeleteSetDialogOpen} onOpenChange={setIsDeleteSetDialogOpen}>
+        <AlertDialogContent data-testid="dialog-delete-set">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Set</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this set?
+              <br /><br />
+              <strong>This action cannot be undone.</strong> The set will be permanently removed from your workout session.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel 
+              onClick={() => {
+                setIsDeleteSetDialogOpen(false);
+                setDeletingSet(null);
+              }}
+              data-testid="button-cancel-delete-set"
+            >
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={handleDeleteSetConfirm}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              data-testid="button-confirm-delete-set"
+            >
+              Delete Set
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
