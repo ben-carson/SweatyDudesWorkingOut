@@ -7,7 +7,9 @@ import {
   insertChallengeParticipantSchema,
   insertExerciseSchema,
   insertWorkoutSessionSchema,
-  insertWorkoutSetSchema
+  insertWorkoutSetSchema,
+  updateWorkoutSessionSchema,
+  updateWorkoutSetSchema
 } from "@shared/schema";
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -212,12 +214,59 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Enhanced session update endpoint
   app.patch("/api/workouts/sessions/:id", async (req, res) => {
     try {
-      await storage.endSession(req.params.id);
+      // Special case: if action is "end", just end the session
+      if (req.body.action === "end") {
+        await storage.endSession(req.params.id);
+        res.json({ success: true });
+        return;
+      }
+      
+      // Otherwise, update the session with provided data
+      const validation = updateWorkoutSessionSchema.safeParse(req.body);
+      if (!validation.success) {
+        return res.status(400).json({ error: validation.error.errors });
+      }
+      
+      const updatedSession = await storage.updateSession(req.params.id, validation.data);
+      if (!updatedSession) {
+        return res.status(404).json({ error: "Session not found" });
+      }
+      
+      res.json(updatedSession);
+    } catch (error) {
+      // Handle temporal validation errors
+      if (error instanceof Error && error.message.includes("End time cannot be before start time")) {
+        return res.status(400).json({ error: error.message });
+      }
+      res.status(500).json({ error: "Failed to update session" });
+    }
+  });
+
+  // Delete session endpoint
+  app.delete("/api/workouts/sessions/:id", async (req, res) => {
+    try {
+      await storage.deleteSession(req.params.id);
       res.json({ success: true });
     } catch (error) {
-      res.status(500).json({ error: "Failed to end session" });
+      res.status(500).json({ error: "Failed to delete session" });
+    }
+  });
+
+  // Get active session endpoint
+  app.get("/api/workouts/active-session", async (req, res) => {
+    try {
+      const { userId } = req.query;
+      if (!userId) {
+        return res.status(400).json({ error: "userId is required" });
+      }
+      
+      const activeSession = await storage.getActiveSession(userId as string);
+      res.json(activeSession);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch active session" });
     }
   });
 
@@ -237,6 +286,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const set = await storage.addSet(validation.data);
       res.json(set);
     } catch (error) {
+      // Handle referential integrity errors from storage
+      if (error instanceof Error && error.message.includes("does not exist")) {
+        return res.status(404).json({ error: error.message });
+      }
       res.status(500).json({ error: "Failed to add set" });
     }
   });
@@ -247,6 +300,55 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(sets);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch sets" });
+    }
+  });
+
+  // Get single set endpoint
+  app.get("/api/workouts/sets/:id", async (req, res) => {
+    try {
+      const set = await storage.getSet(req.params.id);
+      if (!set) {
+        return res.status(404).json({ error: "Set not found" });
+      }
+      res.json(set);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch set" });
+    }
+  });
+
+  // Update set endpoint
+  app.patch("/api/workouts/sets/:id", async (req, res) => {
+    try {
+      // Reject attempts to change immutable fields
+      if (req.body.sessionId) {
+        return res.status(400).json({ error: "sessionId cannot be updated" });
+      }
+      
+      const validation = updateWorkoutSetSchema.safeParse(req.body);
+      if (!validation.success) {
+        return res.status(400).json({ error: validation.error.errors });
+      }
+      
+      // Validate exercise exists if exerciseId is being updated
+      if (validation.data.exerciseId) {
+        const exerciseExists = await storage.getExercise(validation.data.exerciseId);
+        if (!exerciseExists) {
+          return res.status(404).json({ error: "Exercise not found" });
+        }
+      }
+      
+      const updatedSet = await storage.updateSet(req.params.id, validation.data);
+      if (!updatedSet) {
+        return res.status(404).json({ error: "Set not found" });
+      }
+      
+      res.json(updatedSet);
+    } catch (error) {
+      // Handle referential integrity errors
+      if (error instanceof Error && error.message.includes("does not exist")) {
+        return res.status(404).json({ error: error.message });
+      }
+      res.status(500).json({ error: "Failed to update set" });
     }
   });
 

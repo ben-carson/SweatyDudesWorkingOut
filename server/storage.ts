@@ -4,8 +4,8 @@ import type {
   ChallengeParticipant, InsertChallengeParticipant,
   ChallengeEntry, InsertChallengeEntry,
   Exercise, InsertExercise,
-  WorkoutSession, InsertWorkoutSession,
-  WorkoutSet, InsertWorkoutSet
+  WorkoutSession, InsertWorkoutSession, UpdateWorkoutSession,
+  WorkoutSet, InsertWorkoutSet, UpdateWorkoutSet
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 
@@ -64,10 +64,15 @@ export interface IStorage {
   createSession(session: InsertWorkoutSession): Promise<WorkoutSession>;
   listSessions(userId: string, options?: { limit?: number; before?: Date; after?: Date }): Promise<WorkoutSession[]>;
   getSession(id: string): Promise<WorkoutSession | null>;
+  getActiveSession(userId: string): Promise<WorkoutSession | null>;
+  updateSession(id: string, updates: UpdateWorkoutSession): Promise<WorkoutSession | null>;
+  deleteSession(id: string): Promise<void>;
   endSession(id: string): Promise<void>;
   
   // Workout Sets
   addSet(set: InsertWorkoutSet): Promise<WorkoutSet>;
+  getSet(id: string): Promise<WorkoutSet | null>;
+  updateSet(id: string, updates: UpdateWorkoutSet): Promise<WorkoutSet | null>;
   listSetsBySession(sessionId: string): Promise<WorkoutSet[]>;
   listSetsByUser(userId: string, options?: { exerciseId?: string }): Promise<WorkoutSet[]>;
   deleteSet(id: string): Promise<void>;
@@ -365,6 +370,7 @@ export class MemStorage implements IStorage {
       ...sessionData,
       note: sessionData.note || null,
       startedAt: new Date(),
+      endedAt: null, // Explicitly set to null to match type
       createdAt: new Date(),
     };
     this.workoutSessions.set(id, session);
@@ -403,21 +409,101 @@ export class MemStorage implements IStorage {
     }
   }
 
+  async getActiveSession(userId: string): Promise<WorkoutSession | null> {
+    return Array.from(this.workoutSessions.values())
+      .find(session => session.userId === userId && !session.endedAt) || null;
+  }
+
+  async updateSession(id: string, updates: UpdateWorkoutSession): Promise<WorkoutSession | null> {
+    const session = this.workoutSessions.get(id);
+    if (!session) return null;
+    
+    const updatedSession = {
+      ...session,
+      ...updates,
+    };
+    
+    // Enforce temporal integrity: endedAt must be >= startedAt even when only one field is updated
+    const finalStartedAt = updatedSession.startedAt;
+    const finalEndedAt = updatedSession.endedAt;
+    
+    if (finalEndedAt && finalStartedAt && finalEndedAt < finalStartedAt) {
+      throw new Error("End time cannot be before start time");
+    }
+    
+    this.workoutSessions.set(id, updatedSession);
+    return updatedSession;
+  }
+
+  async deleteSession(id: string): Promise<void> {
+    // First delete all sets in this session
+    const setsToDelete = Array.from(this.workoutSets.values())
+      .filter(set => set.sessionId === id)
+      .map(set => set.id);
+    
+    setsToDelete.forEach(setId => {
+      this.workoutSets.delete(setId);
+    });
+    
+    // Then delete the session itself
+    this.workoutSessions.delete(id);
+  }
+
   // Workout Sets
   async addSet(setData: InsertWorkoutSet): Promise<WorkoutSet> {
+    // Validate referential integrity
+    const sessionExists = this.workoutSessions.has(setData.sessionId);
+    if (!sessionExists) {
+      throw new Error(`Session with id ${setData.sessionId} does not exist`);
+    }
+    
+    const exerciseExists = this.exercises.has(setData.exerciseId);
+    if (!exerciseExists) {
+      throw new Error(`Exercise with id ${setData.exerciseId} does not exist`);
+    }
+    
     const id = randomUUID();
     const set: WorkoutSet = {
       id,
-      ...setData,
-      reps: setData.reps || null,
-      weight: setData.weight || null,
-      durationSec: setData.durationSec || null,
-      distanceMeters: setData.distanceMeters || null,
-      note: setData.note || null,
+      sessionId: setData.sessionId,
+      exerciseId: setData.exerciseId,
+      reps: setData.reps ?? null,           // Use ?? to preserve 0 values
+      weight: setData.weight ?? null,       // Use ?? to preserve 0 values
+      durationSec: setData.durationSec ?? null,   // Use ?? to preserve 0 values
+      distanceMeters: setData.distanceMeters ?? null, // Use ?? to preserve 0 values
+      note: setData.note ?? null,
       createdAt: new Date(),
     };
     this.workoutSets.set(id, set);
     return set;
+  }
+
+  async getSet(id: string): Promise<WorkoutSet | null> {
+    return this.workoutSets.get(id) || null;
+  }
+
+  async updateSet(id: string, updates: UpdateWorkoutSet): Promise<WorkoutSet | null> {
+    const set = this.workoutSets.get(id);
+    if (!set) return null;
+    
+    // Validate exercise exists if being updated
+    if (updates.exerciseId && !this.exercises.has(updates.exerciseId)) {
+      throw new Error(`Exercise with id ${updates.exerciseId} does not exist`);
+    }
+    
+    // Build updated set with explicit field handling to preserve 0 values
+    const updatedSet: WorkoutSet = {
+      ...set,
+      exerciseId: updates.exerciseId ?? set.exerciseId,
+      reps: updates.reps !== undefined ? updates.reps : set.reps,       // Preserve 0 values
+      weight: updates.weight !== undefined ? updates.weight : set.weight,
+      durationSec: updates.durationSec !== undefined ? updates.durationSec : set.durationSec,
+      distanceMeters: updates.distanceMeters !== undefined ? updates.distanceMeters : set.distanceMeters,
+      note: updates.note !== undefined ? updates.note : set.note,
+    };
+    
+    this.workoutSets.set(id, updatedSet);
+    return updatedSet;
   }
 
   async listSetsBySession(sessionId: string): Promise<WorkoutSet[]> {

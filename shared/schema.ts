@@ -103,6 +103,27 @@ export const insertWorkoutSetSchema = createInsertSchema(workoutSets).omit({
   createdAt: true,
 });
 
+// Update schemas for CRUD operations - Fixed date validation and removed userId mutability
+export const updateWorkoutSessionSchema = z.object({
+  note: z.string().optional(),
+  startedAt: z.coerce.date().optional(), // Allow string dates from JSON
+  endedAt: z.coerce.date().optional(),   // Allow string dates from JSON
+}).partial()
+.refine((data) => {
+  // Ensure endedAt >= startedAt when both are provided
+  if (data.startedAt && data.endedAt) {
+    return data.endedAt >= data.startedAt;
+  }
+  return true;
+}, {
+  message: "End time must be after start time",
+  path: ["endedAt"]
+});
+
+export const updateWorkoutSetSchema = insertWorkoutSetSchema.omit({
+  sessionId: true, // sessionId should not be updatable
+}).partial();
+
 // Types
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
@@ -124,3 +145,5 @@ export type InsertWorkoutSession = z.infer<typeof insertWorkoutSessionSchema>;
 
 export type WorkoutSet = typeof workoutSets.$inferSelect;
 export type InsertWorkoutSet = z.infer<typeof insertWorkoutSetSchema>;
+export type UpdateWorkoutSession = z.infer<typeof updateWorkoutSessionSchema>;
+export type UpdateWorkoutSet = z.infer<typeof updateWorkoutSetSchema>;
