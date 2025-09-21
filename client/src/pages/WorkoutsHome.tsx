@@ -49,6 +49,9 @@ export default function WorkoutsHome() {
       return response.json();
     }
   });
+  
+  // Get current active session
+  const currentActiveSession = recentSessions.find(session => !session.endedAt);
 
   // Fetch today's stats (simplified - would normally calculate from today's sets)
   const { data: todayStats = { totalSets: 0, totalVolume: 0, workoutTime: 0 } } = useQuery<TodayStats>({
@@ -101,6 +104,18 @@ export default function WorkoutsHome() {
     }
   });
 
+  // End session mutation
+  const endSessionMutation = useMutation({
+    mutationFn: async (sessionId: string) => {
+      const response = await apiRequest("PATCH", `/api/workouts/sessions/${sessionId}`, {});
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/workouts/sessions", currentUserId] });
+      toast({ description: "Workout session completed!" });
+    }
+  });
+
   // Quick log mutation
   const quickLogMutation = useMutation({
     mutationFn: async (data: { exerciseId: string; sessionId: string; values: any }) => {
@@ -125,9 +140,8 @@ export default function WorkoutsHome() {
       return;
     }
 
-    // Create or use current session
-    const currentSession = recentSessions.find(s => !s.endedAt);
-    let sessionId = currentSession?.id;
+    // Use current active session or create new one
+    let sessionId = currentActiveSession?.id;
 
     if (!sessionId) {
       const newSession = await createSessionMutation.mutateAsync();
@@ -177,16 +191,35 @@ export default function WorkoutsHome() {
           <h1 className="text-3xl font-bold text-foreground" data-testid="text-page-title">
             SweatyDudes Workouts
           </h1>
-          <p className="text-muted-foreground">Track your personal fitness journey</p>
+          <p className="text-muted-foreground">
+            {currentActiveSession 
+              ? `Active workout started ${formatTime(currentActiveSession.startedAt)}`
+              : "Track your personal fitness journey"
+            }
+          </p>
         </div>
-        <Button 
-          onClick={() => createSessionMutation.mutate()}
-          disabled={createSessionMutation.isPending}
-          data-testid="button-start-workout"
-        >
-          <Plus className="w-4 h-4 mr-2" />
-          Start Workout
-        </Button>
+        <div className="flex gap-2">
+          {currentActiveSession ? (
+            <Button 
+              onClick={() => endSessionMutation.mutate(currentActiveSession.id)}
+              disabled={endSessionMutation.isPending}
+              variant="outline"
+              data-testid="button-end-workout"
+            >
+              <Timer className="w-4 h-4 mr-2" />
+              End Workout
+            </Button>
+          ) : (
+            <Button 
+              onClick={() => createSessionMutation.mutate()}
+              disabled={createSessionMutation.isPending}
+              data-testid="button-start-workout"
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              Start Workout
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Today's Stats */}
@@ -229,7 +262,12 @@ export default function WorkoutsHome() {
       <Card>
         <CardHeader>
           <CardTitle>Quick Log</CardTitle>
-          <CardDescription>Log a set quickly without starting a full workout</CardDescription>
+          <CardDescription>
+            {currentActiveSession 
+              ? `Adding sets to your active workout (started ${formatTime(currentActiveSession.startedAt)})`
+              : "Log a set quickly - this will create a new workout session"
+            }
+          </CardDescription>
         </CardHeader>
         <CardContent>
           {!isQuickLogging ? (
@@ -396,7 +434,9 @@ export default function WorkoutsHome() {
                     return (
                       <div key={session.id} className="space-y-2">
                         <div 
-                          className="flex items-center justify-between p-3 border rounded-lg"
+                          className={`flex items-center justify-between p-3 border rounded-lg ${
+                            !session.endedAt ? 'border-primary bg-primary/5' : ''
+                          }`}
                           data-testid={`session-${session.id}`}
                         >
                           <div>
