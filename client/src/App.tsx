@@ -14,7 +14,7 @@ import NotFound from "@/pages/not-found";
 
 // Components
 import MobileNavigation from "@/components/MobileNavigation";
-import { ActiveWorkoutProvider } from "@/contexts/ActiveWorkoutContext";
+import { ActiveWorkoutProvider, useActiveWorkout } from "@/contexts/ActiveWorkoutContext";
 import { ActiveWorkoutIndicator } from "@/components/ActiveWorkoutBanner";
 import { useLocation } from "wouter";
 
@@ -31,25 +31,35 @@ function Router() {
   );
 }
 
-function App() {
+function AppContent() {
   const [location, setLocation] = useLocation();
+  const { activeSession } = useActiveWorkout();
+
+  return (
+    <>
+      {/* Cross-tab active workout indicator - shows on all pages */}
+      <ActiveWorkoutIndicator />
+      
+      <div className={`relative min-h-screen ${activeSession ? 'pt-10' : ''}`}>
+        <Router />
+        <MobileNavigation 
+          currentPath={location} 
+          onNavigate={(path) => setLocation(path)}
+        />
+      </div>
+      <Toaster />
+    </>
+  );
+}
+
+function App() {
   const currentUserId = "user1"; // TODO: Replace with actual auth
 
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <ActiveWorkoutProvider userId={currentUserId}>
-          {/* Cross-tab active workout indicator - shows on all pages */}
-          <ActiveWorkoutIndicator />
-          
-          <div className="relative min-h-screen">
-            <Router />
-            <MobileNavigation 
-              currentPath={location} 
-              onNavigate={(path) => setLocation(path)}
-            />
-          </div>
-          <Toaster />
+          <AppContent />
         </ActiveWorkoutProvider>
       </TooltipProvider>
     </QueryClientProvider>
