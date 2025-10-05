@@ -7,7 +7,17 @@ import type {
   WorkoutSession, InsertWorkoutSession, UpdateWorkoutSession,
   WorkoutSet, InsertWorkoutSet, UpdateWorkoutSet
 } from "@shared/schema";
-import { randomUUID } from "crypto";
+import { db } from "./db";
+import { 
+  users, 
+  challenges, 
+  challengeParticipants, 
+  challengeEntries,
+  exercises,
+  workoutSessions,
+  workoutSets
+} from "@shared/schema";
+import { eq, and, desc, asc, isNull, gte, lte, sql } from "drizzle-orm";
 
 export interface LeaderboardEntry {
   user: User;
@@ -92,230 +102,100 @@ export interface IStorage {
   getTodayStats(userId: string): Promise<TodayStats>;
 }
 
-export class MemStorage implements IStorage {
-  private users: Map<string, User> = new Map();
-  private challenges: Map<string, Challenge> = new Map();
-  private participants: Map<string, ChallengeParticipant> = new Map();
-  private entries: Map<string, ChallengeEntry> = new Map();
-  private exercises: Map<string, Exercise> = new Map();
-  private workoutSessions: Map<string, WorkoutSession> = new Map();
-  private workoutSets: Map<string, WorkoutSet> = new Map();
-
-  constructor() {
-    this.createMockData();
-  }
-
-  private createMockData() {
-    // Add some mock users for testing
-    const user1: User = {
-      id: 'user1',
-      username: 'mike_sweat',
-      name: 'Mike Johnson',
-    };
-    const user2: User = {
-      id: 'user2', 
-      username: 'sarah_gains',
-      name: 'Sarah Wilson',
-    };
-    const user3: User = {
-      id: 'user3',
-      username: 'alex_fit', 
-      name: 'Alex Chen',
-    };
-
-    this.users.set(user1.id, user1);
-    this.users.set(user2.id, user2);
-    this.users.set(user3.id, user3);
-
-    // Create a sample challenge
-    const challenge: Challenge = {
-      id: 'challenge1',
-      title: 'Push-up Championship',
-      activity: 'pushups',
-      metric: 'count',
-      unit: 'reps',
-      startAt: new Date('2025-09-15'),
-      endAt: new Date('2025-10-15'),
-      createdBy: 'user1',
-      status: 'active',
-      createdAt: new Date(),
-    };
-
-    this.challenges.set(challenge.id, challenge);
-
-    // Add participants
-    const participant1: ChallengeParticipant = { id: 'p1', challengeId: 'challenge1', userId: 'user1' };
-    const participant2: ChallengeParticipant = { id: 'p2', challengeId: 'challenge1', userId: 'user2' };
-    const participant3: ChallengeParticipant = { id: 'p3', challengeId: 'challenge1', userId: 'user3' };
-
-    this.participants.set(participant1.id, participant1);
-    this.participants.set(participant2.id, participant2);
-    this.participants.set(participant3.id, participant3);
-
-    // Add some entries
-    const entries: ChallengeEntry[] = [
-      { id: 'e1', challengeId: 'challenge1', userId: 'user1', value: 150, note: 'Morning workout', createdAt: new Date('2025-09-16') },
-      { id: 'e2', challengeId: 'challenge1', userId: 'user2', value: 120, note: 'Felt strong today', createdAt: new Date('2025-09-16') },
-      { id: 'e3', challengeId: 'challenge1', userId: 'user3', value: 180, note: 'PR!', createdAt: new Date('2025-09-16') },
-      { id: 'e4', challengeId: 'challenge1', userId: 'user1', value: 100, note: null, createdAt: new Date('2025-09-17') },
-      { id: 'e5', challengeId: 'challenge1', userId: 'user2', value: 140, note: 'Getting better', createdAt: new Date('2025-09-17') },
-    ];
-
-    entries.forEach(entry => this.entries.set(entry.id, entry));
-
-    // Add sample exercises
-    const exercises: Exercise[] = [
-      { id: 'ex1', name: 'Push-ups', metricType: 'count', unit: 'reps', createdAt: new Date() },
-      { id: 'ex2', name: 'Bench Press', metricType: 'weight', unit: 'lbs', createdAt: new Date() },
-      { id: 'ex3', name: 'Running', metricType: 'distance', unit: 'miles', createdAt: new Date() },
-      { id: 'ex4', name: 'Plank', metricType: 'duration', unit: 'seconds', createdAt: new Date() },
-      { id: 'ex5', name: 'Squats', metricType: 'count', unit: 'reps', createdAt: new Date() },
-    ];
-    
-    exercises.forEach(exercise => this.exercises.set(exercise.id, exercise));
-
-    // Add sample workout sessions
-    const sessions: WorkoutSession[] = [
-      { 
-        id: 'session1', 
-        userId: 'user1', 
-        startedAt: new Date('2025-09-19T09:00:00'), 
-        endedAt: new Date('2025-09-19T10:30:00'), 
-        note: 'Great upper body workout',
-        createdAt: new Date('2025-09-19T09:00:00')
-      },
-      { 
-        id: 'session2', 
-        userId: 'user1', 
-        startedAt: new Date('2025-09-20T08:00:00'), 
-        endedAt: null, 
-        note: null,
-        createdAt: new Date('2025-09-20T08:00:00')
-      },
-    ];
-    
-    sessions.forEach(session => this.workoutSessions.set(session.id, session));
-
-    // Add sample workout sets
-    const sets: WorkoutSet[] = [
-      { id: 'set1', sessionId: 'session1', exerciseId: 'ex1', reps: 25, weight: null, durationSec: null, distanceMeters: null, note: 'First set', createdAt: new Date('2025-09-19T09:15:00') },
-      { id: 'set2', sessionId: 'session1', exerciseId: 'ex1', reps: 20, weight: null, durationSec: null, distanceMeters: null, note: null, createdAt: new Date('2025-09-19T09:20:00') },
-      { id: 'set3', sessionId: 'session1', exerciseId: 'ex2', reps: 8, weight: 185, durationSec: null, distanceMeters: null, note: 'Personal best!', createdAt: new Date('2025-09-19T09:45:00') },
-      { id: 'set4', sessionId: 'session2', exerciseId: 'ex1', reps: 30, weight: null, durationSec: null, distanceMeters: null, note: null, createdAt: new Date('2025-09-20T08:15:00') },
-    ];
-    
-    sets.forEach(set => this.workoutSets.set(set.id, set));
-  }
-
+// Database implementation using Drizzle ORM - reference: blueprint:javascript_database
+export class DatabaseStorage implements IStorage {
   // Users
   async getUser(id: string): Promise<User | undefined> {
-    return this.users.get(id);
+    const [user] = await db.select().from(users).where(eq(users.id, id));
+    return user;
   }
 
   async getUserByUsername(username: string): Promise<User | undefined> {
-    return Array.from(this.users.values()).find(
-      (user) => user.username === username,
-    );
+    const [user] = await db.select().from(users).where(eq(users.username, username));
+    return user;
   }
 
   async createUser(insertUser: InsertUser): Promise<User> {
-    const id = randomUUID();
-    const user: User = { ...insertUser, id };
-    this.users.set(id, user);
+    const [user] = await db.insert(users).values(insertUser).returning();
     return user;
   }
 
   async listUsers(): Promise<User[]> {
-    return Array.from(this.users.values());
+    return await db.select().from(users);
   }
 
   // Challenges
   async createChallenge(challengeData: InsertChallenge): Promise<Challenge> {
-    const id = randomUUID();
-    const challenge: Challenge = {
-      id,
-      ...challengeData,
-      status: challengeData.status || 'upcoming',
-      metric: challengeData.metric || 'count',
-      unit: challengeData.unit || 'reps',
-      createdAt: new Date(),
-    };
-    this.challenges.set(id, challenge);
+    const [challenge] = await db.insert(challenges).values(challengeData).returning();
     return challenge;
   }
 
   async listChallenges(filters?: { status?: string; userId?: string }): Promise<Challenge[]> {
-    let challenges = Array.from(this.challenges.values());
-    
-    if (filters?.status) {
-      challenges = challenges.filter(c => c.status === filters.status);
-    }
-    
     if (filters?.userId) {
-      // Filter by challenges the user participates in
-      const userChallengeIds = Array.from(this.participants.values())
-        .filter(p => p.userId === filters.userId)
-        .map(p => p.challengeId);
-      challenges = challenges.filter(c => userChallengeIds.includes(c.id));
+      // Get challenges the user participates in
+      const userChallenges = await db
+        .select({ challenge: challenges })
+        .from(challenges)
+        .innerJoin(challengeParticipants, eq(challenges.id, challengeParticipants.challengeId))
+        .where(
+          filters.status 
+            ? and(eq(challengeParticipants.userId, filters.userId), eq(challenges.status, filters.status))
+            : eq(challengeParticipants.userId, filters.userId)
+        )
+        .orderBy(desc(challenges.createdAt));
+      
+      return userChallenges.map(row => row.challenge);
     }
-    
-    return challenges.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+
+    const conditions = filters?.status ? eq(challenges.status, filters.status) : undefined;
+    return await db
+      .select()
+      .from(challenges)
+      .where(conditions)
+      .orderBy(desc(challenges.createdAt));
   }
 
   async getChallenge(id: string): Promise<Challenge | null> {
-    return this.challenges.get(id) || null;
+    const [challenge] = await db.select().from(challenges).where(eq(challenges.id, id));
+    return challenge || null;
   }
 
   async updateChallengeStatus(id: string, status: string): Promise<void> {
-    const challenge = this.challenges.get(id);
-    if (challenge) {
-      challenge.status = status;
-      this.challenges.set(id, challenge);
-    }
+    await db.update(challenges).set({ status }).where(eq(challenges.id, id));
   }
 
   // Challenge Participants
   async addParticipants(challengeId: string, userIds: string[]): Promise<void> {
-    for (const userId of userIds) {
-      const id = randomUUID();
-      const participant: ChallengeParticipant = {
-        id,
-        challengeId,
-        userId,
-      };
-      this.participants.set(id, participant);
-    }
+    const participants = userIds.map(userId => ({ challengeId, userId }));
+    await db.insert(challengeParticipants).values(participants);
   }
 
   async listParticipants(challengeId: string): Promise<User[]> {
-    const participantUserIds = Array.from(this.participants.values())
-      .filter(p => p.challengeId === challengeId)
-      .map(p => p.userId);
+    const results = await db
+      .select({ user: users })
+      .from(users)
+      .innerJoin(challengeParticipants, eq(users.id, challengeParticipants.userId))
+      .where(eq(challengeParticipants.challengeId, challengeId));
     
-    return participantUserIds.map(userId => this.users.get(userId)).filter(Boolean) as User[];
+    return results.map(row => row.user);
   }
 
   // Challenge Entries
   async createEntry(entryData: InsertChallengeEntry): Promise<ChallengeEntry> {
-    const id = randomUUID();
-    const entry: ChallengeEntry = {
-      id,
-      ...entryData,
-      note: entryData.note || null,
-      createdAt: new Date(),
-    };
-    this.entries.set(id, entry);
+    const [entry] = await db.insert(challengeEntries).values(entryData).returning();
     return entry;
   }
 
   async listEntries(challengeId: string): Promise<ChallengeEntry[]> {
-    return Array.from(this.entries.values())
-      .filter(e => e.challengeId === challengeId)
-      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+    return await db
+      .select()
+      .from(challengeEntries)
+      .where(eq(challengeEntries.challengeId, challengeId))
+      .orderBy(desc(challengeEntries.createdAt));
   }
 
   async deleteEntry(id: string): Promise<void> {
-    this.entries.delete(id);
+    await db.delete(challengeEntries).where(eq(challengeEntries.id, id));
   }
 
   // Leaderboard
@@ -337,8 +217,8 @@ export class MemStorage implements IStorage {
       .map(user => ({
         user,
         total: totals.get(user.id) || 0,
-        rank: 0, // Will be set below
-        deltaFromLeader: 0, // Will be set below
+        rank: 0,
+        deltaFromLeader: 0,
       }))
       .sort((a, b) => b.total - a.total);
     
@@ -354,210 +234,161 @@ export class MemStorage implements IStorage {
 
   // Exercises
   async listExercises(): Promise<Exercise[]> {
-    return Array.from(this.exercises.values()).sort((a, b) => a.name.localeCompare(b.name));
+    return await db.select().from(exercises).orderBy(asc(exercises.name));
   }
 
   async createExercise(exerciseData: InsertExercise): Promise<Exercise> {
-    const id = randomUUID();
-    const exercise: Exercise = {
-      id,
-      ...exerciseData,
-      createdAt: new Date(),
-    };
-    this.exercises.set(id, exercise);
+    const [exercise] = await db.insert(exercises).values(exerciseData).returning();
     return exercise;
   }
 
   async getExercise(id: string): Promise<Exercise | null> {
-    return this.exercises.get(id) || null;
+    const [exercise] = await db.select().from(exercises).where(eq(exercises.id, id));
+    return exercise || null;
   }
 
   // Workout Sessions
   async createSession(sessionData: InsertWorkoutSession): Promise<WorkoutSession> {
-    const id = randomUUID();
-    const session: WorkoutSession = {
-      id,
-      ...sessionData,
-      note: sessionData.note || null,
-      startedAt: new Date(),
-      endedAt: null, // Explicitly set to null to match type
-      createdAt: new Date(),
-    };
-    this.workoutSessions.set(id, session);
+    const [session] = await db.insert(workoutSessions).values(sessionData).returning();
     return session;
   }
 
   async listSessions(userId: string, options?: { limit?: number; before?: Date; after?: Date }): Promise<WorkoutSession[]> {
-    let sessions = Array.from(this.workoutSessions.values())
-      .filter(s => s.userId === userId);
+    const conditions = [eq(workoutSessions.userId, userId)];
     
     if (options?.before) {
-      sessions = sessions.filter(s => s.startedAt < options.before!);
+      conditions.push(lte(workoutSessions.startedAt, options.before));
     }
     if (options?.after) {
-      sessions = sessions.filter(s => s.startedAt > options.after!);
+      conditions.push(gte(workoutSessions.startedAt, options.after));
     }
     
-    sessions = sessions.sort((a, b) => b.startedAt.getTime() - a.startedAt.getTime());
+    let query = db
+      .select()
+      .from(workoutSessions)
+      .where(and(...conditions))
+      .orderBy(desc(workoutSessions.startedAt));
     
     if (options?.limit) {
-      sessions = sessions.slice(0, options.limit);
+      query = query.limit(options.limit) as typeof query;
     }
     
-    return sessions;
+    return await query;
   }
 
   async getSession(id: string): Promise<WorkoutSession | null> {
-    return this.workoutSessions.get(id) || null;
+    const [session] = await db.select().from(workoutSessions).where(eq(workoutSessions.id, id));
+    return session || null;
   }
 
-  // Ownership validation helper
   async getSessionWithOwnership(id: string, userId: string): Promise<WorkoutSession | null> {
-    const session = this.workoutSessions.get(id);
-    if (!session || session.userId !== userId) return null;
-    return session;
+    const [session] = await db
+      .select()
+      .from(workoutSessions)
+      .where(and(eq(workoutSessions.id, id), eq(workoutSessions.userId, userId)));
+    return session || null;
   }
 
   async endSession(id: string): Promise<void> {
-    const session = this.workoutSessions.get(id);
-    if (session) {
-      session.endedAt = new Date();
-      this.workoutSessions.set(id, session);
-    }
+    await db.update(workoutSessions).set({ endedAt: new Date() }).where(eq(workoutSessions.id, id));
   }
 
   async getActiveSession(userId: string): Promise<WorkoutSession | null> {
-    return Array.from(this.workoutSessions.values())
-      .find(session => session.userId === userId && !session.endedAt) || null;
+    const [session] = await db
+      .select()
+      .from(workoutSessions)
+      .where(and(eq(workoutSessions.userId, userId), isNull(workoutSessions.endedAt)));
+    return session || null;
   }
 
   async updateSession(id: string, updates: UpdateWorkoutSession): Promise<WorkoutSession | null> {
-    const session = this.workoutSessions.get(id);
-    if (!session) return null;
+    // First get the current session
+    const [currentSession] = await db.select().from(workoutSessions).where(eq(workoutSessions.id, id));
+    if (!currentSession) return null;
     
-    const updatedSession = {
-      ...session,
-      ...updates,
-    };
+    // Merge updates with current values
+    const finalStartedAt = updates.startedAt ?? currentSession.startedAt;
+    const finalEndedAt = updates.endedAt !== undefined ? updates.endedAt : currentSession.endedAt;
     
-    // Enforce temporal integrity: endedAt must be >= startedAt even when only one field is updated
-    const finalStartedAt = updatedSession.startedAt;
-    const finalEndedAt = updatedSession.endedAt;
-    
+    // Validate temporal integrity
     if (finalEndedAt && finalStartedAt && finalEndedAt < finalStartedAt) {
       throw new Error("End time cannot be before start time");
     }
     
-    this.workoutSessions.set(id, updatedSession);
-    return updatedSession;
+    const [updated] = await db
+      .update(workoutSessions)
+      .set(updates)
+      .where(eq(workoutSessions.id, id))
+      .returning();
+    
+    return updated || null;
   }
 
   async deleteSession(id: string): Promise<void> {
-    // First delete all sets in this session
-    const setsToDelete = Array.from(this.workoutSets.values())
-      .filter(set => set.sessionId === id)
-      .map(set => set.id);
-    
-    setsToDelete.forEach(setId => {
-      this.workoutSets.delete(setId);
-    });
-    
-    // Then delete the session itself
-    this.workoutSessions.delete(id);
+    // Delete all sets in this session first
+    await db.delete(workoutSets).where(eq(workoutSets.sessionId, id));
+    // Then delete the session
+    await db.delete(workoutSessions).where(eq(workoutSessions.id, id));
   }
 
   // Workout Sets
   async addSet(setData: InsertWorkoutSet): Promise<WorkoutSet> {
-    // Validate referential integrity
-    const sessionExists = this.workoutSessions.has(setData.sessionId);
-    if (!sessionExists) {
-      throw new Error(`Session with id ${setData.sessionId} does not exist`);
-    }
-    
-    const exerciseExists = this.exercises.has(setData.exerciseId);
-    if (!exerciseExists) {
-      throw new Error(`Exercise with id ${setData.exerciseId} does not exist`);
-    }
-    
-    const id = randomUUID();
-    const set: WorkoutSet = {
-      id,
-      sessionId: setData.sessionId,
-      exerciseId: setData.exerciseId,
-      reps: setData.reps ?? null,           // Use ?? to preserve 0 values
-      weight: setData.weight ?? null,       // Use ?? to preserve 0 values
-      durationSec: setData.durationSec ?? null,   // Use ?? to preserve 0 values
-      distanceMeters: setData.distanceMeters ?? null, // Use ?? to preserve 0 values
-      note: setData.note ?? null,
-      createdAt: new Date(),
-    };
-    this.workoutSets.set(id, set);
+    const [set] = await db.insert(workoutSets).values(setData).returning();
     return set;
   }
 
   async getSet(id: string): Promise<WorkoutSet | null> {
-    return this.workoutSets.get(id) || null;
+    const [set] = await db.select().from(workoutSets).where(eq(workoutSets.id, id));
+    return set || null;
   }
 
-  // Ownership validation for sets
   async getSetWithOwnership(id: string, userId: string): Promise<WorkoutSet | null> {
-    const set = this.workoutSets.get(id);
-    if (!set) return null;
+    const [result] = await db
+      .select({ set: workoutSets })
+      .from(workoutSets)
+      .innerJoin(workoutSessions, eq(workoutSets.sessionId, workoutSessions.id))
+      .where(and(eq(workoutSets.id, id), eq(workoutSessions.userId, userId)));
     
-    const session = this.workoutSessions.get(set.sessionId);
-    if (!session || session.userId !== userId) return null;
-    
-    return set;
+    return result?.set || null;
   }
 
   async updateSet(id: string, updates: UpdateWorkoutSet): Promise<WorkoutSet | null> {
-    const set = this.workoutSets.get(id);
-    if (!set) return null;
+    const [updated] = await db
+      .update(workoutSets)
+      .set(updates)
+      .where(eq(workoutSets.id, id))
+      .returning();
     
-    // Validate exercise exists if being updated
-    if (updates.exerciseId && !this.exercises.has(updates.exerciseId)) {
-      throw new Error(`Exercise with id ${updates.exerciseId} does not exist`);
-    }
-    
-    // Build updated set with explicit field handling to preserve 0 values
-    const updatedSet: WorkoutSet = {
-      ...set,
-      exerciseId: updates.exerciseId ?? set.exerciseId,
-      reps: updates.reps !== undefined ? updates.reps : set.reps,       // Preserve 0 values
-      weight: updates.weight !== undefined ? updates.weight : set.weight,
-      durationSec: updates.durationSec !== undefined ? updates.durationSec : set.durationSec,
-      distanceMeters: updates.distanceMeters !== undefined ? updates.distanceMeters : set.distanceMeters,
-      note: updates.note !== undefined ? updates.note : set.note,
-    };
-    
-    this.workoutSets.set(id, updatedSet);
-    return updatedSet;
+    return updated || null;
   }
 
   async listSetsBySession(sessionId: string): Promise<WorkoutSet[]> {
-    return Array.from(this.workoutSets.values())
-      .filter(s => s.sessionId === sessionId)
-      .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+    return await db
+      .select()
+      .from(workoutSets)
+      .where(eq(workoutSets.sessionId, sessionId))
+      .orderBy(asc(workoutSets.createdAt));
   }
 
   async listSetsByUser(userId: string, options?: { exerciseId?: string }): Promise<WorkoutSet[]> {
-    // Get user's sessions first
-    const userSessions = Array.from(this.workoutSessions.values())
-      .filter(s => s.userId === userId)
-      .map(s => s.id);
-    
-    let sets = Array.from(this.workoutSets.values())
-      .filter(s => userSessions.includes(s.sessionId));
+    const conditions = [eq(workoutSessions.userId, userId)];
     
     if (options?.exerciseId) {
-      sets = sets.filter(s => s.exerciseId === options.exerciseId);
+      conditions.push(eq(workoutSets.exerciseId, options.exerciseId));
     }
     
-    return sets.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+    const results = await db
+      .select({ set: workoutSets })
+      .from(workoutSets)
+      .innerJoin(workoutSessions, eq(workoutSets.sessionId, workoutSessions.id))
+      .where(and(...conditions))
+      .orderBy(desc(workoutSets.createdAt));
+    
+    return results.map(row => row.set);
   }
 
   async deleteSet(id: string): Promise<void> {
-    this.workoutSets.delete(id);
+    await db.delete(workoutSets).where(eq(workoutSets.id, id));
   }
 
   // Analytics
@@ -566,12 +397,11 @@ export class MemStorage implements IStorage {
     const exerciseRecords = new Map<string, PersonalRecord>();
 
     for (const set of userSets) {
-      const exercise = this.exercises.get(set.exerciseId);
+      const exercise = await this.getExercise(set.exerciseId);
       if (!exercise) continue;
 
       let value: number | null = null;
       
-      // Determine value based on exercise metric type
       switch (exercise.metricType) {
         case 'count':
           value = set.reps;
@@ -606,7 +436,7 @@ export class MemStorage implements IStorage {
 
   async getExerciseTimeseries(userId: string, exerciseId: string, granularity: 'day' | 'week'): Promise<ExerciseTimeseriesPoint[]> {
     const sets = await this.listSetsByUser(userId, { exerciseId });
-    const exercise = this.exercises.get(exerciseId);
+    const exercise = await this.getExercise(exerciseId);
     if (!exercise) return [];
 
     const dataPoints = new Map<string, { maxValue: number; totalVolume: number; date: Date }>();
@@ -631,13 +461,11 @@ export class MemStorage implements IStorage {
 
       if (value === null) continue;
 
-      // Create date key based on granularity
       const date = new Date(set.createdAt);
       let dateKey: string;
       if (granularity === 'day') {
         dateKey = date.toISOString().split('T')[0];
       } else {
-        // Week granularity
         const weekStart = new Date(date);
         weekStart.setDate(date.getDate() - date.getDay());
         dateKey = weekStart.toISOString().split('T')[0];
@@ -661,50 +489,35 @@ export class MemStorage implements IStorage {
 
   async getTodayStats(userId: string): Promise<TodayStats> {
     const today = new Date();
-    const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-    const endOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1);
+    today.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
 
-    // Get today's sessions for the user
-    const todaySessions = await this.listSessions(userId, {
-      after: startOfDay,
-      before: endOfDay
-    });
-
+    const sessions = await this.listSessions(userId, { after: today, before: tomorrow });
+    
     let totalSets = 0;
     let totalVolume = 0;
     let totalWorkoutTime = 0;
     const uniqueExercises = new Set<string>();
 
-    for (const session of todaySessions) {
-      // Calculate workout time
-      if (session.endedAt) {
-        const startTime = new Date(session.startedAt).getTime();
-        const endTime = new Date(session.endedAt).getTime();
-        totalWorkoutTime += Math.round((endTime - startTime) / (1000 * 60)); // Convert to minutes
-      } else if (session.startedAt) {
-        // For active sessions, calculate time since start
-        const startTime = new Date(session.startedAt).getTime();
-        const now = new Date().getTime();
-        totalWorkoutTime += Math.round((now - startTime) / (1000 * 60)); // Convert to minutes
+    for (const session of sessions) {
+      const sets = await this.listSetsBySession(session.id);
+      totalSets += sets.length;
+
+      if (session.endedAt && session.startedAt) {
+        totalWorkoutTime += (session.endedAt.getTime() - session.startedAt.getTime()) / 1000 / 60;
       }
 
-      // Get sets for this session
-      const sessionSets = await this.listSetsBySession(session.id);
-      totalSets += sessionSets.length;
-
-      // Calculate volume and track unique exercises
-      for (const set of sessionSets) {
+      for (const set of sets) {
         uniqueExercises.add(set.exerciseId);
-        
-        // Calculate volume based on exercise type
-        const exercise = this.exercises.get(set.exerciseId);
+        const exercise = await this.getExercise(set.exerciseId);
         if (exercise) {
           switch (exercise.metricType) {
             case 'count':
               if (set.reps) totalVolume += set.reps;
               break;
             case 'weight':
-              if (set.weight && set.reps) totalVolume += set.weight * set.reps;
+              if (set.weight) totalVolume += set.weight;
               break;
             case 'duration':
               if (set.durationSec) totalVolume += set.durationSec;
@@ -726,4 +539,4 @@ export class MemStorage implements IStorage {
   }
 }
 
-export const storage = new MemStorage();
+export const storage = new DatabaseStorage();
