@@ -4,6 +4,23 @@
 
 This is a fitness social application called "SweatyDudes" that combines workout tracking with social features and friendly fitness challenges. The app allows users to create challenges like push-ups, squats, or other exercises, track their progress, compete with friends, and share their workout activities in a social feed. The platform emphasizes building fitness communities through gamification and social interaction.
 
+## Recent Changes (October 2025)
+
+### Profile Editing Features
+- Added comprehensive profile editing functionality with firstName, lastName, email, and username fields
+- Username serves as the primary user identifier throughout the app (displayed as @username)
+- Created Settings & Privacy page (`/settings`) for managing profile information
+- Updated Profile page to display database-stored user information instead of Stack Auth display name
+- Removed bio field from user profiles as requested
+
+### Security Implementation
+- Implemented secure authentication middleware for profile update endpoints
+- Middleware verifies Stack Auth tokens from cookies using Stack Auth REST API
+- Uses server-side STACK_SECRET_SERVER_KEY for secure token verification
+- Ensures users can only update their own profiles (prevents unauthorized access)
+- Proper error handling with 401 (unauthorized), 403 (forbidden), and 500 (server error) responses
+- Detailed logging for authentication failures and configuration issues
+
 ## User Preferences
 
 Preferred communication style: Simple, everyday language.
@@ -75,8 +92,11 @@ The application implements a comprehensive design system with:
 - **Date-fns** for date manipulation and formatting
 
 ### Authentication and Sessions
+- **Stack Auth** for user authentication and identity management
+- **Custom authentication middleware** (`server/auth.ts`) for protecting sensitive API endpoints
+- Token verification via Stack Auth REST API using server secret key
+- Cookie-based session management with HTTP-only cookies
 - **Express Session** with connect-pg-simple for session storage
-- Planned integration with authentication providers
 
 ### Utilities and Helpers
 - **clsx** and **class-variance-authority** for conditional class names
