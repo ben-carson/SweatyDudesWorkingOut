@@ -13,6 +13,7 @@ import type { WorkoutSession, WorkoutSet, Exercise, User } from '@shared/schema'
 import { format } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
 import { queryClient, apiRequest } from '@/lib/queryClient';
+import { useLocation } from 'wouter';
 
 export default function Profile() {
   const user = stackClientApp.useUser();
@@ -22,6 +23,7 @@ export default function Profile() {
   const [email, setEmail] = useState('');
   const [username, setUsername] = useState('');
   const { toast } = useToast();
+  const [, setLocation] = useLocation();
 
   if (!user) {
     return null;
@@ -381,7 +383,7 @@ export default function Profile() {
           <Button 
             variant="outline" 
             className="w-full flex items-center gap-2"
-            onClick={() => console.log('Open settings')}
+            onClick={() => setLocation('/settings')}
             data-testid="button-settings"
           >
             <Settings className="w-4 h-4" />

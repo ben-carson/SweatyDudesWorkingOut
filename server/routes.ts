@@ -1,6 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
+import { authenticateUser } from "./auth";
 import { 
   insertChallengeSchema, 
   insertChallengeEntrySchema,
@@ -145,8 +146,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.patch("/api/users/:id", async (req, res) => {
+  app.patch("/api/users/:id", authenticateUser, async (req, res) => {
     try {
+      // Verify user can only update their own profile
+      if (req.params.id !== req.user!.id) {
+        return res.status(403).json({ error: "Cannot update other user's profile" });
+      }
+
       const validation = updateUserSchema.safeParse(req.body);
       if (!validation.success) {
         return res.status(400).json({ error: validation.error.errors });
