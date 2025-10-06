@@ -32,18 +32,34 @@ export default function Settings() {
   });
 
   useEffect(() => {
-    if (dbUser) {
-      setFirstName(dbUser.firstName || '');
-      setLastName(dbUser.lastName || '');
-      setEmail(dbUser.email || '');
-      setUsername(dbUser.username || '');
-    }
-  }, [dbUser]);
+    // Initialize from Stack Auth user object and clientMetadata
+    const metadata = user.clientMetadata as { firstName?: string; lastName?: string } | undefined;
+    setFirstName(metadata?.firstName || '');
+    setLastName(metadata?.lastName || '');
+    setEmail(user.primaryEmail || '');
+    setUsername(dbUser?.username || '');
+  }, [user, dbUser]);
 
   const updateMutation = useMutation({
-    mutationFn: async (updates: { firstName?: string; lastName?: string; email?: string; username?: string }) => {
-      const response = await apiRequest('PATCH', `/api/users/${userId}`, updates);
-      return response.json();
+    mutationFn: async (updates: { firstName?: string; lastName?: string; username?: string }) => {
+      // Update Stack Auth user with name in metadata and displayName
+      await user.update({
+        displayName: updates.firstName && updates.lastName 
+          ? `${updates.firstName} ${updates.lastName}` 
+          : user.displayName || undefined,
+        clientMetadata: {
+          firstName: updates.firstName || '',
+          lastName: updates.lastName || '',
+        }
+      });
+
+      // Update username in local database (Stack Auth doesn't support username)
+      if (updates.username) {
+        const response = await apiRequest('PATCH', `/api/users/${userId}`, {
+          username: updates.username
+        });
+        return response.json();
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/users", userId] });
@@ -52,7 +68,8 @@ export default function Settings() {
         description: "Your profile has been successfully updated.",
       });
     },
-    onError: () => {
+    onError: (error) => {
+      console.error('Update error:', error);
       toast({
         title: "Error",
         description: "Failed to update profile. Please try again.",
@@ -65,7 +82,6 @@ export default function Settings() {
     updateMutation.mutate({
       firstName: firstName || undefined,
       lastName: lastName || undefined,
-      email: email || undefined,
       username: username || undefined,
     });
   };
@@ -148,10 +164,14 @@ export default function Settings() {
                 id="email"
                 type="email"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="Enter email address"
+                readOnly
+                disabled
+                className="bg-muted"
                 data-testid="input-email"
               />
+              <p className="text-xs text-muted-foreground mt-1">
+                Email is managed by your authentication provider and cannot be changed here
+              </p>
             </div>
 
             <Button

@@ -37,19 +37,35 @@ export default function Profile() {
   });
 
   useEffect(() => {
-    if (dbUser) {
-      setFirstName(dbUser.firstName || '');
-      setLastName(dbUser.lastName || '');
-      setEmail(dbUser.email || '');
-      setUsername(dbUser.username || '');
-    }
-  }, [dbUser]);
+    // Initialize from Stack Auth user object and clientMetadata
+    const metadata = user.clientMetadata as { firstName?: string; lastName?: string } | undefined;
+    setFirstName(metadata?.firstName || '');
+    setLastName(metadata?.lastName || '');
+    setEmail(user.primaryEmail || '');
+    setUsername(dbUser?.username || '');
+  }, [user, dbUser]);
 
   // Update user mutation
   const updateMutation = useMutation({
-    mutationFn: async (updates: { firstName?: string; lastName?: string; email?: string; username?: string }) => {
-      const response = await apiRequest('PATCH', `/api/users/${userId}`, updates);
-      return response.json();
+    mutationFn: async (updates: { firstName?: string; lastName?: string; username?: string }) => {
+      // Update Stack Auth user with name in metadata and displayName
+      await user.update({
+        displayName: updates.firstName && updates.lastName 
+          ? `${updates.firstName} ${updates.lastName}` 
+          : user.displayName || undefined,
+        clientMetadata: {
+          firstName: updates.firstName || '',
+          lastName: updates.lastName || '',
+        }
+      });
+
+      // Update username in local database (Stack Auth doesn't support username)
+      if (updates.username) {
+        const response = await apiRequest('PATCH', `/api/users/${userId}`, {
+          username: updates.username
+        });
+        return response.json();
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/users", userId] });
@@ -59,7 +75,8 @@ export default function Profile() {
         description: "Your profile has been successfully updated.",
       });
     },
-    onError: () => {
+    onError: (error) => {
+      console.error('Update error:', error);
       toast({
         title: "Error",
         description: "Failed to update profile. Please try again.",
@@ -120,10 +137,11 @@ export default function Profile() {
     return new Date(s.endedAt) >= weekAgo;
   }).length;
 
-  // Get user data - prefer database values over Stack Auth
-  const displayName = dbUser?.firstName && dbUser?.lastName 
-    ? `${dbUser.firstName} ${dbUser.lastName}`
-    : dbUser?.firstName || dbUser?.lastName || user.displayName || user.primaryEmail?.split('@')[0] || 'User';
+  // Get user data - prefer Stack Auth values
+  const metadata = user.clientMetadata as { firstName?: string; lastName?: string } | undefined;
+  const displayName = metadata?.firstName && metadata?.lastName 
+    ? `${metadata.firstName} ${metadata.lastName}`
+    : metadata?.firstName || metadata?.lastName || user.displayName || user.primaryEmail?.split('@')[0] || 'User';
   const displayUsername = dbUser?.username || user.primaryEmail?.split('@')[0] || 'user';
   const memberSince = 'Recently'; // Stack Auth user object doesn't expose createdAt directly
   const profileImageUrl = user.profileImageUrl;
@@ -132,7 +150,6 @@ export default function Profile() {
     updateMutation.mutate({
       firstName: firstName || undefined,
       lastName: lastName || undefined,
-      email: email || undefined,
       username: username || undefined,
     });
   };
@@ -249,10 +266,14 @@ export default function Profile() {
                           id="email"
                           type="email"
                           value={email}
-                          onChange={(e) => setEmail(e.target.value)}
-                          placeholder="Email address"
+                          readOnly
+                          disabled
+                          className="bg-muted"
                           data-testid="input-email"
                         />
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Email is managed by your authentication provider
+                        </p>
                       </div>
                       <Button 
                         onClick={handleSaveProfile}
