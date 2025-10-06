@@ -21,15 +21,9 @@ import { ActiveWorkoutProvider, useActiveWorkout } from "@/contexts/ActiveWorkou
 import { ActiveWorkoutIndicator } from "@/components/ActiveWorkoutBanner";
 import { useLocation } from "wouter";
 
-function HandlerRoutes() {
-  const [location] = useLocation();
-  return <StackHandler app={stackClientApp} location={location} fullPage />;
-}
-
 function Router() {
   return (
     <Switch>
-      <Route path="/handler/*" component={HandlerRoutes} />
       <Route path="/" component={WorkoutsHome} />
       <Route path="/progress" component={Progress} />
       <Route path="/challenges" component={ChallengesHome} />
@@ -61,22 +55,6 @@ function AppContent() {
   );
 }
 
-function App() {
-  return (
-    <Suspense fallback={<div className="flex items-center justify-center min-h-screen">Loading...</div>}>
-      <QueryClientProvider client={queryClient}>
-        <TooltipProvider>
-          <StackProvider app={stackClientApp}>
-            <StackTheme>
-              <AppWithAuth />
-            </StackTheme>
-          </StackProvider>
-        </TooltipProvider>
-      </QueryClientProvider>
-    </Suspense>
-  );
-}
-
 function AppWithAuth() {
   const user = stackClientApp.useUser();
   
@@ -102,6 +80,33 @@ function AppWithAuth() {
     <ActiveWorkoutProvider userId={user.id}>
       <AppContent />
     </ActiveWorkoutProvider>
+  );
+}
+
+function HandlerRoute() {
+  const [location] = useLocation();
+  return <StackHandler app={stackClientApp} location={location || '/handler/sign-in'} fullPage />;
+}
+
+function App() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center min-h-screen">Loading...</div>}>
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider>
+          <StackProvider app={stackClientApp}>
+            <StackTheme>
+              <Switch>
+                {/* Auth handler routes - must be outside auth check */}
+                <Route path="/handler/*" component={HandlerRoute} />
+                
+                {/* All other routes - protected by auth */}
+                <Route path="/*" component={AppWithAuth} />
+              </Switch>
+            </StackTheme>
+          </StackProvider>
+        </TooltipProvider>
+      </QueryClientProvider>
+    </Suspense>
   );
 }
 
