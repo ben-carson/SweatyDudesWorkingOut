@@ -69,9 +69,10 @@ export const workoutSets = pgTable("workout_sets", {
 
 // Insert schemas
 export const insertUserSchema = createInsertSchema(users).pick({
+  id: true,
   username: true,
   name: true,
-});
+}).partial({ id: true });
 
 export const updateUserSchema = createInsertSchema(users).pick({
   username: true,

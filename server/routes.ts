@@ -11,6 +11,7 @@ import {
   insertWorkoutSetSchema,
   updateWorkoutSessionSchema,
   updateWorkoutSetSchema,
+  insertUserSchema,
   updateUserSchema
 } from "@shared/schema";
 
@@ -131,6 +132,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(users);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch users" });
+    }
+  });
+
+  app.post("/api/users", async (req, res) => {
+    try {
+      // Validate input with schema
+      const validation = insertUserSchema.safeParse(req.body);
+      if (!validation.success) {
+        return res.status(400).json({ error: validation.error.errors });
+      }
+
+      const { id, username, name } = validation.data;
+
+      // Check if user already exists
+      if (id) {
+        const existingUser = await storage.getUser(id);
+        if (existingUser) {
+          return res.json(existingUser);
+        }
+      }
+
+      // Create new user with validated data
+      const user = await storage.createUser(validation.data);
+      res.json(user);
+    } catch (error: any) {
+      // Handle unique constraint violation for username
+      if (error?.code === '23505' && error?.constraint === 'users_username_unique') {
+        return res.status(409).json({ error: "Username already taken" });
+      }
+      console.error("Failed to create user:", error);
+      res.status(500).json({ error: "Failed to create user" });
     }
   });
 
