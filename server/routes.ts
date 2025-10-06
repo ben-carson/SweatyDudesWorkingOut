@@ -242,12 +242,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const validation = insertWorkoutSessionSchema.safeParse(req.body);
       if (!validation.success) {
+        console.error("Session validation failed:", validation.error.errors);
         return res.status(400).json({ error: validation.error.errors });
       }
       
       const session = await storage.createSession(validation.data);
       res.json(session);
     } catch (error) {
+      console.error("Failed to create session:", error);
       res.status(500).json({ error: "Failed to create session" });
     }
   });

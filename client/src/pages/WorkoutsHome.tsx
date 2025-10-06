@@ -28,9 +28,11 @@ import { ActiveSessionExercises } from "@/components/ActiveSessionExercises";
 import { SessionEditModal } from "@/components/SessionEditModal";
 import { AddSetModal } from "@/components/AddSetModal";
 import { EditSetModal } from "@/components/EditSetModal";
+import { stackClientApp } from "@/stack";
 
 
 export default function WorkoutsHome() {
+  const user = stackClientApp.useUser();
   const { toast } = useToast();
   const [isQuickLogging, setIsQuickLogging] = useState(false);
   const [selectedExercise, setSelectedExercise] = useState<string>("");
@@ -53,9 +55,6 @@ export default function WorkoutsHome() {
     distance: "",
     note: ""
   });
-
-  // Mock current user
-  const currentUserId = "user1";
   
   // Use active workout context
   const { activeSession, startWorkout } = useActiveWorkout();
@@ -64,6 +63,17 @@ export default function WorkoutsHome() {
   const { data: exercises = [] } = useQuery<Exercise[]>({
     queryKey: ["/api/exercises"],
   });
+
+  // Guard: wait for user to load before rendering main content
+  if (!user) {
+    return (
+      <div className="container mx-auto p-6">
+        <p className="text-muted-foreground">Loading...</p>
+      </div>
+    );
+  }
+
+  const currentUserId = user.id;
 
   // Fetch recent sessions
   const { data: recentSessions = [] } = useQuery<WorkoutSession[]>({
