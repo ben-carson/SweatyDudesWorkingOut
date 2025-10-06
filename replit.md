@@ -6,12 +6,22 @@ This is a fitness social application called "SweatyDudes" that combines workout 
 
 ## Recent Changes (October 2025)
 
-### Profile Editing Features
-- Added comprehensive profile editing functionality with firstName, lastName, email, and username fields
-- Username serves as the primary user identifier throughout the app (displayed as @username)
-- Created Settings & Privacy page (`/settings`) for managing profile information
-- Updated Profile page to display database-stored user information instead of Stack Auth display name
-- Removed bio field from user profiles as requested
+### Profile Management with Stack Auth (Neon Auth)
+- **Email Management**: Email is now managed exclusively by Stack Auth (Neon Auth) authentication system
+  - Email is read-only in the UI and synced from Stack Auth's `primaryEmail` field
+  - Email changes must be done through Stack Auth's authentication flow
+- **Name Management**: First name and last name are stored in Stack Auth's `clientMetadata`
+  - Updated to `displayName` in Stack Auth for consistent display across the app
+  - Removed firstName/lastName fields from local database (managed by Stack Auth)
+- **Username**: Remains in local database as Stack Auth doesn't natively support username
+  - Username serves as the primary user identifier throughout the app (displayed as @username)
+- **Settings & Privacy Page**: Created `/settings` page for managing profile information
+  - Users can update first name, last name, and username
+  - Email is displayed but read-only (managed by authentication provider)
+- **Profile Page**: Updated to display Stack Auth user information
+  - Reads firstName/lastName from Stack Auth clientMetadata
+  - Reads email from Stack Auth primaryEmail
+  - Reads username from local database
 
 ### Security Implementation
 - Implemented secure authentication middleware for profile update endpoints
