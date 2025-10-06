@@ -461,13 +461,13 @@ export default function WorkoutsHome() {
 
                     {selectedExerciseData.metricType === 'duration' && (
                       <div className="space-y-2">
-                        <Label htmlFor="duration">Duration (seconds)</Label>
+                        <Label htmlFor="duration">Duration ({selectedExerciseData.unit})</Label>
                         <Input
                           id="duration"
                           type="number"
                           value={quickLogValues.duration}
                           onChange={(e) => setQuickLogValues(prev => ({ ...prev, duration: e.target.value }))}
-                          placeholder="Duration in seconds"
+                          placeholder={`Duration in ${selectedExerciseData.unit}`}
                           data-testid="input-duration"
                         />
                       </div>
