@@ -6,6 +6,28 @@ This is a fitness social application called "SweatyDudes" that combines workout 
 
 ## Recent Changes (October 2025)
 
+### Exercise Management System
+- **Exercise Library Page**: Created `/exercises` page for managing exercises
+  - View all available exercises with their metric types and units
+  - Add new exercises through a modal dialog
+  - Exercises support multiple metric types: count, weight, duration, distance
+  - Auto-populates unit options based on selected metric type
+- **Navigation**: Added Exercises tab to mobile navigation (Library icon)
+- **Database Schema**: Exercise table with unique names and validation
+- **API Endpoints**: GET and POST endpoints for exercise management
+- **Seed Data**: Pre-populated 10 common exercises (Bench Press, Squats, Running, etc.)
+- **Integration**: Exercises now populate in workout tracking dropdowns
+
+### User Auto-Sync on Login
+- **Automatic Database Sync**: Users are automatically created in local database upon Stack Auth login
+  - Eliminates "Start Workout" errors caused by missing user records
+  - Uses Stack Auth user ID as primary key for consistency
+  - Generates username from email prefix or user ID
+  - Handles username collisions with timestamp suffix
+  - Implements retry logic with exponential backoff (3 attempts max)
+- **UI Gating**: Shows "Setting up your account..." during sync to prevent race conditions
+- **POST /api/users Endpoint**: New endpoint for creating/syncing users with validation
+
 ### Profile Management with Stack Auth (Neon Auth)
 - **Email Management**: Email is now managed exclusively by Stack Auth (Neon Auth) authentication system
   - Email is read-only in the UI and synced from Stack Auth's `primaryEmail` field

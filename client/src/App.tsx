@@ -14,6 +14,7 @@ import Friends from "@/pages/Friends";
 import Progress from "@/pages/Progress";
 import Profile from "@/pages/Profile";
 import Settings from "@/pages/Settings";
+import Exercises from "@/pages/Exercises";
 import NotFound from "@/pages/not-found";
 
 // Components
@@ -29,6 +30,7 @@ function Router() {
       <Route path="/progress" component={Progress} />
       <Route path="/challenges" component={ChallengesHome} />
       <Route path="/friends" component={Friends} />
+      <Route path="/exercises" component={Exercises} />
       <Route path="/profile" component={Profile} />
       <Route path="/settings" component={Settings} />
       <Route component={NotFound} />
