@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useState, useEffect } from 'react';
+import { useQuery, useMutation } from '@tanstack/react-query';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -9,19 +9,62 @@ import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Settings, Trophy, Zap, Target, Calendar, Edit, Share, Dumbbell } from 'lucide-react';
 import { stackClientApp } from '@/stack';
-import type { WorkoutSession, WorkoutSet, Exercise } from '@shared/schema';
+import type { WorkoutSession, WorkoutSet, Exercise, User } from '@shared/schema';
 import { format } from 'date-fns';
+import { useToast } from '@/hooks/use-toast';
+import { queryClient, apiRequest } from '@/lib/queryClient';
 
 export default function Profile() {
   const user = stackClientApp.useUser();
   const [isEditOpen, setIsEditOpen] = useState(false);
-  const [userBio, setUserBio] = useState('');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const [email, setEmail] = useState('');
+  const [username, setUsername] = useState('');
+  const { toast } = useToast();
 
   if (!user) {
     return null;
   }
 
   const userId = user.id;
+
+  // Fetch user data from database
+  const { data: dbUser } = useQuery<User>({
+    queryKey: ["/api/users", userId],
+  });
+
+  useEffect(() => {
+    if (dbUser) {
+      setFirstName(dbUser.firstName || '');
+      setLastName(dbUser.lastName || '');
+      setEmail(dbUser.email || '');
+      setUsername(dbUser.username || '');
+    }
+  }, [dbUser]);
+
+  // Update user mutation
+  const updateMutation = useMutation({
+    mutationFn: async (updates: { firstName?: string; lastName?: string; email?: string; username?: string }) => {
+      const response = await apiRequest('PATCH', `/api/users/${userId}`, updates);
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/users", userId] });
+      setIsEditOpen(false);
+      toast({
+        title: "Profile updated",
+        description: "Your profile has been successfully updated.",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to update profile. Please try again.",
+        variant: "destructive",
+      });
+    }
+  });
   
   // Fetch recent workout sessions (same as Workouts tab)
   const { data: recentSessions = [], isLoading: isLoadingSessions } = useQuery<WorkoutSession[]>({
@@ -75,15 +118,21 @@ export default function Profile() {
     return new Date(s.endedAt) >= weekAgo;
   }).length;
 
-  // Get user data from Stack Auth
-  const displayName = user.displayName || user.primaryEmail?.split('@')[0] || 'User';
-  const username = user.primaryEmail?.split('@')[0] || 'user';
+  // Get user data - prefer database values over Stack Auth
+  const displayName = dbUser?.firstName && dbUser?.lastName 
+    ? `${dbUser.firstName} ${dbUser.lastName}`
+    : dbUser?.firstName || dbUser?.lastName || user.displayName || user.primaryEmail?.split('@')[0] || 'User';
+  const displayUsername = dbUser?.username || user.primaryEmail?.split('@')[0] || 'user';
   const memberSince = 'Recently'; // Stack Auth user object doesn't expose createdAt directly
   const profileImageUrl = user.profileImageUrl;
 
   const handleSaveProfile = () => {
-    setIsEditOpen(false);
-    console.log('Profile updated:', { bio: userBio });
+    updateMutation.mutate({
+      firstName: firstName || undefined,
+      lastName: lastName || undefined,
+      email: email || undefined,
+      username: username || undefined,
+    });
   };
 
   // Group sets by session for display
@@ -128,7 +177,7 @@ export default function Profile() {
                 </Avatar>
                 <div>
                   <h1 className="text-xl font-bold" data-testid="text-user-name">{displayName}</h1>
-                  <p className="text-muted-foreground" data-testid="text-username">@{username}</p>
+                  <p className="text-muted-foreground" data-testid="text-username">@{displayUsername}</p>
                   <p className="text-sm text-muted-foreground mt-1">
                     Member since {memberSince}
                   </p>
@@ -160,30 +209,62 @@ export default function Profile() {
                       <DialogTitle>Edit Profile</DialogTitle>
                     </DialogHeader>
                     <div className="space-y-4 py-4">
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <Label htmlFor="firstName">First Name</Label>
+                          <Input
+                            id="firstName"
+                            value={firstName}
+                            onChange={(e) => setFirstName(e.target.value)}
+                            placeholder="First name"
+                            data-testid="input-first-name"
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor="lastName">Last Name</Label>
+                          <Input
+                            id="lastName"
+                            value={lastName}
+                            onChange={(e) => setLastName(e.target.value)}
+                            placeholder="Last name"
+                            data-testid="input-last-name"
+                          />
+                        </div>
+                      </div>
                       <div>
-                        <Label htmlFor="bio">Bio</Label>
+                        <Label htmlFor="username">Username</Label>
                         <Input
-                          id="bio"
-                          value={userBio}
-                          onChange={(e) => setUserBio(e.target.value)}
-                          placeholder="Tell us about your fitness journey..."
-                          data-testid="input-bio"
+                          id="username"
+                          value={username}
+                          onChange={(e) => setUsername(e.target.value)}
+                          placeholder="Username"
+                          data-testid="input-username"
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="email">Email</Label>
+                        <Input
+                          id="email"
+                          type="email"
+                          value={email}
+                          onChange={(e) => setEmail(e.target.value)}
+                          placeholder="Email address"
+                          data-testid="input-email"
                         />
                       </div>
                       <Button 
                         onClick={handleSaveProfile}
+                        disabled={updateMutation.isPending}
                         className="w-full bg-chart-1 hover:bg-chart-1/90 text-white"
                         data-testid="button-save-profile"
                       >
-                        Save Changes
+                        {updateMutation.isPending ? 'Saving...' : 'Save Changes'}
                       </Button>
                     </div>
                   </DialogContent>
                 </Dialog>
               </div>
             </div>
-            
-            {userBio && <p className="text-sm mb-4">{userBio}</p>}
             
             {/* Stats Grid */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
