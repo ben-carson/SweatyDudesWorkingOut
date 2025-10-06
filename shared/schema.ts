@@ -6,6 +6,9 @@ import { z } from "zod";
 export const users = pgTable("users", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   username: text("username").notNull().unique(),
+  firstName: text("first_name"),
+  lastName: text("last_name"),
+  email: text("email"),
   name: text("name").notNull(),
 });
 
@@ -73,6 +76,13 @@ export const insertUserSchema = createInsertSchema(users).pick({
   name: true,
 });
 
+export const updateUserSchema = createInsertSchema(users).pick({
+  username: true,
+  firstName: true,
+  lastName: true,
+  email: true,
+}).partial();
+
 export const insertChallengeSchema = createInsertSchema(challenges).omit({
   id: true,
   createdAt: true,
@@ -127,6 +137,7 @@ export const updateWorkoutSetSchema = insertWorkoutSetSchema.omit({
 // Types
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
+export type UpdateUser = z.infer<typeof updateUserSchema>;
 
 export type Challenge = typeof challenges.$inferSelect;
 export type InsertChallenge = z.infer<typeof insertChallengeSchema>;
