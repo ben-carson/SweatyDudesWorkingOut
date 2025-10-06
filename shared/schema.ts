@@ -6,9 +6,6 @@ import { z } from "zod";
 export const users = pgTable("users", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   username: text("username").notNull().unique(),
-  firstName: text("first_name"),
-  lastName: text("last_name"),
-  email: text("email"),
   name: text("name").notNull(),
 });
 
@@ -78,9 +75,6 @@ export const insertUserSchema = createInsertSchema(users).pick({
 
 export const updateUserSchema = createInsertSchema(users).pick({
   username: true,
-  firstName: true,
-  lastName: true,
-  email: true,
 }).partial();
 
 export const insertChallengeSchema = createInsertSchema(challenges).omit({
