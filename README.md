@@ -1,4 +1,4 @@
-# Fitness Tracking Application
+# Sweaty Dudes
 
 A full-stack fitness tracking application built with React, Express, and PostgreSQL. Track workouts, exercises, and participate in fitness challenges with friends.
 
@@ -12,8 +12,8 @@ A full-stack fitness tracking application built with React, Express, and Postgre
 ### 1. Clone the Repository
 
 ```bash
-git clone <repository-url>
-cd <project-directory>
+git clone https://github.com/ben-carson/SweatyDudesWorkingOut
+cd SweatyDudesWorkingOut
 ```
 
 ### 2. Environment Configuration
