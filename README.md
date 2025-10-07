@@ -21,7 +21,13 @@ cd SweatyDudesWorkingOut
 Create a `.env` file in the root directory with the following variable:
 
 ```env
-DATABASE_URL=your_neon_postgresql_connection_string
+# Neon Auth environment variables for Next.js
+NEXT_PUBLIC_STACK_PROJECT_ID='<your-neon-project-id>'
+NEXT_PUBLIC_STACK_PUBLISHABLE_CLIENT_KEY='<your-neon-client-key>'
+STACK_SECRET_SERVER_KEY='<your-neon-secret-key>'
+
+# Database owner connection string
+DATABASE_URL='<your-neon-connection-string>'
 ```
 
 To get your Neon connection string:
