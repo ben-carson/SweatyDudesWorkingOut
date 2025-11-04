@@ -1,71 +1,140 @@
 import { sql } from "drizzle-orm";
 import { pgTable, text, varchar, integer, timestamp, real } from "drizzle-orm/pg-core";
+import { sqliteTable } from "drizzle-orm/sqlite-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
+import { nanoid } from 'nanoid';
 
-export const users = pgTable("users", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  username: text("username").notNull().unique(),
-  name: text("name").notNull(),
-});
+const dbMode = (process.env.DB_MODE || 'neon').toLowerCase();
+const isSqlite = dbMode === 'sqlite-file' || dbMode === 'sqlite-memory';
 
-export const challenges = pgTable("challenges", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  title: text("title").notNull(),
-  activity: text("activity").notNull(), // 'pushups', 'squats', 'pullups', etc.
-  metric: text("metric").notNull().default("count"), // 'count', 'weight', 'duration', 'distance'
-  unit: text("unit").notNull().default("reps"), // 'reps', 'lbs', 'minutes', 'miles'
-  startAt: timestamp("start_at").notNull(),
-  endAt: timestamp("end_at").notNull(),
-  createdBy: varchar("created_by").references(() => users.id).notNull(),
-  status: text("status").notNull().default("upcoming"), // 'upcoming', 'active', 'completed'
-  createdAt: timestamp("created_at").notNull().default(sql`now()`),
-});
+const generateId = () => nanoid();
 
-export const challengeParticipants = pgTable("challenge_participants", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  challengeId: varchar("challenge_id").references(() => challenges.id).notNull(),
-  userId: varchar("user_id").references(() => users.id).notNull(),
-});
+export const users = isSqlite
+  ? sqliteTable("users", {
+      id: text("id").primaryKey().$defaultFn(generateId),
+      username: text("username").notNull().unique(),
+      name: text("name").notNull(),
+    })
+  : pgTable("users", {
+      id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+      username: text("username").notNull().unique(),
+      name: text("name").notNull(),
+    });
 
-export const challengeEntries = pgTable("challenge_entries", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  challengeId: varchar("challenge_id").references(() => challenges.id).notNull(),
-  userId: varchar("user_id").references(() => users.id).notNull(),
-  value: integer("value").notNull(), // the number they logged (e.g., 50 pushups)
-  note: text("note"),
-  createdAt: timestamp("created_at").notNull().default(sql`now()`),
-});
+export const challenges = isSqlite
+  ? sqliteTable("challenges", {
+      id: text("id").primaryKey().$defaultFn(generateId),
+      title: text("title").notNull(),
+      activity: text("activity").notNull(),
+      metric: text("metric").notNull().default("count"),
+      unit: text("unit").notNull().default("reps"),
+      startAt: integer("start_at", { mode: 'timestamp' }).notNull(),
+      endAt: integer("end_at", { mode: 'timestamp' }).notNull(),
+      createdBy: text("created_by").references(() => users.id).notNull(),
+      status: text("status").notNull().default("upcoming"),
+      createdAt: integer("created_at", { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
+    })
+  : pgTable("challenges", {
+      id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+      title: text("title").notNull(),
+      activity: text("activity").notNull(),
+      metric: text("metric").notNull().default("count"),
+      unit: text("unit").notNull().default("reps"),
+      startAt: timestamp("start_at").notNull(),
+      endAt: timestamp("end_at").notNull(),
+      createdBy: varchar("created_by").references(() => users.id).notNull(),
+      status: text("status").notNull().default("upcoming"),
+      createdAt: timestamp("created_at").notNull().default(sql`now()`),
+    });
 
-// Workout tracking tables
-export const exercises = pgTable("exercises", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  name: text("name").notNull().unique(),
-  metricType: text("metric_type").notNull(), // 'count', 'weight', 'duration', 'distance'
-  unit: text("unit").notNull(), // 'reps', 'lbs', 'minutes', 'miles', 'kg', 'seconds'
-  createdAt: timestamp("created_at").notNull().default(sql`now()`),
-});
+export const challengeParticipants = isSqlite
+  ? sqliteTable("challenge_participants", {
+      id: text("id").primaryKey().$defaultFn(generateId),
+      challengeId: text("challenge_id").references(() => challenges.id).notNull(),
+      userId: text("user_id").references(() => users.id).notNull(),
+    })
+  : pgTable("challenge_participants", {
+      id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+      challengeId: varchar("challenge_id").references(() => challenges.id).notNull(),
+      userId: varchar("user_id").references(() => users.id).notNull(),
+    });
 
-export const workoutSessions = pgTable("workout_sessions", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  userId: varchar("user_id").references(() => users.id).notNull(),
-  startedAt: timestamp("started_at").notNull().default(sql`now()`),
-  endedAt: timestamp("ended_at"),
-  note: text("note"),
-  createdAt: timestamp("created_at").notNull().default(sql`now()`),
-});
+export const challengeEntries = isSqlite
+  ? sqliteTable("challenge_entries", {
+      id: text("id").primaryKey().$defaultFn(generateId),
+      challengeId: text("challenge_id").references(() => challenges.id).notNull(),
+      userId: text("user_id").references(() => users.id).notNull(),
+      value: integer("value").notNull(),
+      note: text("note"),
+      createdAt: integer("created_at", { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
+    })
+  : pgTable("challenge_entries", {
+      id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+      challengeId: varchar("challenge_id").references(() => challenges.id).notNull(),
+      userId: varchar("user_id").references(() => users.id).notNull(),
+      value: integer("value").notNull(),
+      note: text("note"),
+      createdAt: timestamp("created_at").notNull().default(sql`now()`),
+    });
 
-export const workoutSets = pgTable("workout_sets", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  sessionId: varchar("session_id").references(() => workoutSessions.id).notNull(),
-  exerciseId: varchar("exercise_id").references(() => exercises.id).notNull(),
-  reps: integer("reps"), // for count-based exercises
-  weight: real("weight"), // for weight-based exercises  
-  durationSec: integer("duration_sec"), // for duration-based exercises
-  distanceMeters: real("distance_meters"), // for distance-based exercises
-  note: text("note"),
-  createdAt: timestamp("created_at").notNull().default(sql`now()`),
-});
+export const exercises = isSqlite
+  ? sqliteTable("exercises", {
+      id: text("id").primaryKey().$defaultFn(generateId),
+      name: text("name").notNull().unique(),
+      metricType: text("metric_type").notNull(),
+      unit: text("unit").notNull(),
+      createdAt: integer("created_at", { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
+    })
+  : pgTable("exercises", {
+      id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+      name: text("name").notNull().unique(),
+      metricType: text("metric_type").notNull(),
+      unit: text("unit").notNull(),
+      createdAt: timestamp("created_at").notNull().default(sql`now()`),
+    });
+
+export const workoutSessions = isSqlite
+  ? sqliteTable("workout_sessions", {
+      id: text("id").primaryKey().$defaultFn(generateId),
+      userId: text("user_id").references(() => users.id).notNull(),
+      startedAt: integer("started_at", { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
+      endedAt: integer("ended_at", { mode: 'timestamp' }),
+      note: text("note"),
+      createdAt: integer("created_at", { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
+    })
+  : pgTable("workout_sessions", {
+      id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+      userId: varchar("user_id").references(() => users.id).notNull(),
+      startedAt: timestamp("started_at").notNull().default(sql`now()`),
+      endedAt: timestamp("ended_at"),
+      note: text("note"),
+      createdAt: timestamp("created_at").notNull().default(sql`now()`),
+    });
+
+export const workoutSets = isSqlite
+  ? sqliteTable("workout_sets", {
+      id: text("id").primaryKey().$defaultFn(generateId),
+      sessionId: text("session_id").references(() => workoutSessions.id).notNull(),
+      exerciseId: text("exercise_id").references(() => exercises.id).notNull(),
+      reps: integer("reps"),
+      weight: real("weight"),
+      durationSec: integer("duration_sec"),
+      distanceMeters: real("distance_meters"),
+      note: text("note"),
+      createdAt: integer("created_at", { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
+    })
+  : pgTable("workout_sets", {
+      id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+      sessionId: varchar("session_id").references(() => workoutSessions.id).notNull(),
+      exerciseId: varchar("exercise_id").references(() => exercises.id).notNull(),
+      reps: integer("reps"),
+      weight: real("weight"),
+      durationSec: integer("duration_sec"),
+      distanceMeters: real("distance_meters"),
+      note: text("note"),
+      createdAt: timestamp("created_at").notNull().default(sql`now()`),
+    });
 
 // Insert schemas
 export const insertUserSchema = createInsertSchema(users).pick({

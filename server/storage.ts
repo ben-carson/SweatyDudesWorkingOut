@@ -1,4 +1,4 @@
-import type { 
+import type {
   User, InsertUser, UpdateUser,
   Challenge, InsertChallenge,
   ChallengeParticipant, InsertChallengeParticipant,
@@ -7,11 +7,11 @@ import type {
   WorkoutSession, InsertWorkoutSession, UpdateWorkoutSession,
   WorkoutSet, InsertWorkoutSet, UpdateWorkoutSet
 } from "@shared/schema";
-import { db } from "./db";
-import { 
-  users, 
-  challenges, 
-  challengeParticipants, 
+import { db } from "./db-factory";
+import {
+  users,
+  challenges,
+  challengeParticipants,
   challengeEntries,
   exercises,
   workoutSessions,
