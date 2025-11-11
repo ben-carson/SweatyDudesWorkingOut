@@ -197,8 +197,8 @@ Currently no formal test suite. When testing:
 Required `.env` variables:
 ```env
 # Stack Auth (authentication)
-NEXT_PUBLIC_STACK_PROJECT_ID=<your-project-id>
-NEXT_PUBLIC_STACK_PUBLISHABLE_CLIENT_KEY=<your-client-key>
+VITE_STACK_PROJECT_ID=<your-project-id>
+VITE_STACK_PUBLISHABLE_CLIENT_KEY=<your-publishable-key>
 STACK_SECRET_SERVER_KEY=<your-secret-key>
 
 # Database (Neon PostgreSQL)
@@ -207,6 +207,7 @@ DATABASE_URL=<your-neon-connection-string>
 # Optional
 DB_MODE=neon  # or 'sqlite-file' for local development
 PORT=5000     # Server port (default: 5000)
+SQLITE_DB_PATH=./data/app.db  # SQLite database path (only used if DB_MODE='sqlite-file')
 ```
 
 ## Future Enhancement Context

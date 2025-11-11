@@ -18,19 +18,32 @@ cd SweatyDudesWorkingOut
 
 ### 2. Environment Configuration
 
-Create a `.env` file in the root directory with the following variable:
+Create a `.env` file in the root directory with the following variables:
 
 ```env
-# Neon Auth environment variables for Next.js
-NEXT_PUBLIC_STACK_PROJECT_ID='<your-neon-project-id>'
-NEXT_PUBLIC_STACK_PUBLISHABLE_CLIENT_KEY='<your-neon-client-key>'
-STACK_SECRET_SERVER_KEY='<your-neon-secret-key>'
+# Stack Auth environment variables
+VITE_STACK_PROJECT_ID='<your-stack-project-id>'
+VITE_STACK_PUBLISHABLE_CLIENT_KEY='<your-stack-publishable-key>'
+STACK_SECRET_SERVER_KEY='<your-stack-secret-key>'
 
-# Database owner connection string
+# Database connection string (Neon PostgreSQL)
 DATABASE_URL='<your-neon-connection-string>'
+
+# Optional configuration
+# DB_MODE='neon'           # Database mode: 'neon' or 'sqlite-file' (default: 'neon')
+# PORT=5000                # Server port (default: 5000)
+# SQLITE_DB_PATH='./data/app.db'  # SQLite database path (only used if DB_MODE='sqlite-file')
 ```
 
-To get your Neon connection string:
+**Stack Auth Setup:**
+1. Sign up or log in at [Stack Auth](https://stack-auth.com)
+2. Create a new project
+3. Copy your project credentials:
+   - `VITE_STACK_PROJECT_ID` - Your Stack project ID
+   - `VITE_STACK_PUBLISHABLE_CLIENT_KEY` - Your publishable client key
+   - `STACK_SECRET_SERVER_KEY` - Your secret server key (keep this private!)
+
+**Neon Database Setup:**
 1. Sign up or log in at [Neon Console](https://console.neon.tech)
 2. Create a new project or select an existing one
 3. Copy the connection string from your project dashboard
