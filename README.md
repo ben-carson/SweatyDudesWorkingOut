@@ -5,7 +5,39 @@ A full-stack fitness tracking application built with React, Express, and Postgre
 ## Prerequisites
 
 - Node.js 18+ and npm
-- A Neon PostgreSQL database account and connection string
+- **For production**: A Neon PostgreSQL database account and connection string
+- **For local development**: No external services required! Just use SQLite mode (see below)
+
+## Quick Start (Local Development with SQLite)
+
+Want to try the app without setting up external services? Use SQLite mode!
+
+```bash
+# 1. Clone and install
+git clone https://github.com/ben-carson/SweatyDudesWorkingOut
+cd SweatyDudesWorkingOut
+npm install --legacy-peer-deps
+
+# 2. Set up SQLite database
+npm run db:push:sqlite
+npm run db:seed
+
+# 3. Run in development mode (no .env file needed!)
+npm run dev:sqlite
+```
+
+The app will start at `http://localhost:5000` with a dev user automatically logged in.
+
+**Dev Mode Features:**
+- ✓ No Stack Auth setup required
+- ✓ No Neon database required
+- ✓ Automatic dev user login
+- ✓ Sample exercises pre-loaded
+- ✓ All features functional
+
+## Production Setup (Neon + Stack Auth)
+
+For deployment with authentication and cloud database:
 
 ## Getting Started
 
@@ -106,11 +138,73 @@ npm start
 
 ## Available Scripts
 
-- `npm run dev` - Start development server with hot reload
+### Development
+- `npm run dev` - Start development server (uses .env config)
+- `npm run dev:sqlite` - Start with SQLite (local dev mode, no auth required)
+- `npm run dev:neon` - Start with Neon PostgreSQL (requires Stack Auth)
+- `npm run check` - Run TypeScript type checking
+
+### Database
+- `npm run db:push` - Push schema changes (auto-detects DB_MODE)
+- `npm run db:push:sqlite` - Push schema to SQLite
+- `npm run db:push:neon` - Push schema to Neon PostgreSQL
+- `npm run db:seed` - Seed SQLite database with sample data
+- `npm run db:generate` - Generate Drizzle migrations
+
+### Production
 - `npm run build` - Build frontend and backend for production
 - `npm start` - Run the production server
-- `npm run check` - Run TypeScript type checking
-- `npm run db:push` - Push database schema changes to Neon
+
+## Database Modes
+
+The app supports two database modes with automatic authentication handling:
+
+### SQLite Mode (Local Development)
+
+**When to use:** Quick local development, testing, no external dependencies
+
+**Features:**
+- File-based SQLite database (`./data/app.db` by default)
+- No Stack Auth required - automatic dev user login
+- No Neon PostgreSQL required
+- Sample data seeding available
+- Perfect for offline development
+
+**Setup:**
+```bash
+npm run db:push:sqlite  # Create database schema
+npm run db:seed         # Load sample data
+npm run dev:sqlite      # Start app
+```
+
+**Authentication:** Automatically logs in as "Dev User" (dev@localhost.dev)
+
+### Neon Mode (Production)
+
+**When to use:** Production deployment, multi-user apps, cloud hosting
+
+**Features:**
+- Cloud PostgreSQL via Neon
+- Real user authentication via Stack Auth
+- Scalable and production-ready
+- Full user management and security
+
+**Setup:**
+```bash
+# Requires .env with Stack Auth and Neon credentials
+npm run db:push:neon    # Push schema to Neon
+npm run dev:neon        # Start with Neon
+```
+
+**Authentication:** Stack Auth handles user login, registration, and sessions
+
+### Mode Detection
+
+The app automatically detects which mode to use:
+- **Dev Mode**: SQLite + No Stack Auth env vars → Mock authentication
+- **Production Mode**: Neon + Stack Auth env vars → Real authentication
+
+Both modes have full feature parity - all app features work identically!
 
 ## Project Structure
 

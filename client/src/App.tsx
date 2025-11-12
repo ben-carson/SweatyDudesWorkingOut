@@ -139,7 +139,7 @@ function AppWithAuth() {
         }
       } catch (error) {
         console.error(`Sync attempt ${attemptNumber} failed:`, error);
-        
+
         if (attemptNumber < maxRetries) {
           const delay = 1000 * attemptNumber; // Exponential backoff
           console.log(`Retrying in ${delay}ms... (${attemptNumber}/${maxRetries})`);
@@ -163,6 +163,8 @@ function AppWithAuth() {
   }, [user?.id, isDevMode]);
   
   if (!user) {
+    // In dev mode, this should never happen (always have a user)
+    // In production, show sign-in prompt
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center space-y-4">
