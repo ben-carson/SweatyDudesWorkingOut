@@ -22,8 +22,39 @@ SweatyDudes is a full-stack fitness tracking application built with React, Expre
 - `npm run db:generate` - Generate Drizzle migrations
 
 ### Alternative Development Modes
-- `npm run dev:sqlite` - Run with SQLite file database
-- `npm run dev:neon` - Run with Neon PostgreSQL (explicit)
+- `npm run dev:sqlite` - Run with SQLite file database (dev auth mode, no Stack Auth needed)
+- `npm run dev:neon` - Run with Neon PostgreSQL (explicit, requires Stack Auth)
+- `npm run db:seed` - Seed SQLite database with sample exercises and dev users
+
+## Development Authentication
+
+The app supports two authentication modes that activate automatically:
+
+### Dev Auth Mode (SQLite Development)
+**Activates when:** `DB_MODE=sqlite-file` AND no Stack Auth environment variables
+
+**Implementation:**
+- Server: `server/auth-dev.ts` provides mock user authentication
+- Client: `client/src/stack-dev.ts` provides mock Stack Auth interface
+- Auto-detects in `server/auth.ts` and `client/src/stack.ts`
+- Always authenticated as "Dev User" (ID: `dev-user-1`)
+- No external services required - instant setup
+
+**Files involved:**
+- `server/auth-dev.ts` - Dev authentication middleware
+- `client/src/stack-dev.ts` - Mock Stack Auth client
+- `server/auth.ts` - Routes to dev or Stack Auth
+- `client/src/stack.ts` - Exports dev or real Stack client
+- `client/src/App.tsx` - Skips StackProvider in dev mode
+
+### Stack Auth Mode (Production)
+**Activates when:** Stack Auth environment variables are present
+
+**Implementation:**
+- Uses `@stackframe/react` for client-side auth
+- Server validates tokens via Stack Auth API
+- Full user registration, login, and session management
+- Required for production deployment
 
 ## Architecture
 
@@ -194,6 +225,10 @@ Currently no formal test suite. When testing:
 
 ## Environment Configuration
 
+### For SQLite Development Mode
+**No `.env` file required!** Just run `npm run dev:sqlite` and you're good to go.
+
+### For Production Mode (Neon + Stack Auth)
 Required `.env` variables:
 ```env
 # Stack Auth (authentication)

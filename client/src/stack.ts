@@ -1,9 +1,22 @@
 import { StackClientApp } from '@stackframe/react';
 import { useLocation } from 'wouter';
+import { stackClientApp as devStackClientApp } from './stack-dev';
 
-export const stackClientApp = new StackClientApp({
-  projectId: import.meta.env.VITE_STACK_PROJECT_ID,
-  publishableClientKey: import.meta.env.VITE_STACK_PUBLISHABLE_CLIENT_KEY,
+/**
+ * Check if we're in dev auth mode
+ * (Stack Auth credentials not configured)
+ */
+const isDevMode = !import.meta.env.VITE_STACK_PROJECT_ID || !import.meta.env.VITE_STACK_PUBLISHABLE_CLIENT_KEY;
+
+if (isDevMode) {
+  console.log('[Dev Auth] Stack Auth credentials not found - using development authentication');
+  console.log('[Dev Auth] Dev user: dev@localhost.dev (ID: dev-user-1)');
+}
+
+// Create real Stack Auth client (will only be used if not in dev mode)
+const realStackClientApp = isDevMode ? null : new StackClientApp({
+  projectId: import.meta.env.VITE_STACK_PROJECT_ID!,
+  publishableClientKey: import.meta.env.VITE_STACK_PUBLISHABLE_CLIENT_KEY!,
   tokenStore: 'cookie',
   redirectMethod: {
     useNavigate() {
@@ -12,3 +25,6 @@ export const stackClientApp = new StackClientApp({
     },
   },
 });
+
+// Export either dev or production Stack Auth client
+export const stackClientApp = isDevMode ? devStackClientApp : realStackClientApp!;
