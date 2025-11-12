@@ -13,7 +13,8 @@
     "db:push": "drizzle-kit push",
     "db:push:sqlite": "DB_MODE=sqlite-file drizzle-kit push",
     "db:push:neon": "DB_MODE=neon drizzle-kit push",
-    "db:generate": "drizzle-kit generate"
+    "db:generate": "drizzle-kit generate",
+    "db:seed": "DB_MODE=sqlite-file tsx server/seed-dev.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
