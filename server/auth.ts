@@ -1,5 +1,6 @@
 import type { Request, Response, NextFunction } from "express";
 import { authenticateDevUser, isDevAuthMode } from "./auth-dev";
+import { authenticateDevUser, isDevAuthMode } from "./auth-dev";
 
 interface StackAuthUser {
   id: string;
@@ -15,6 +16,10 @@ declare global {
   }
 }
 
+/**
+ * Main authentication middleware
+ * Routes to either dev auth or Stack Auth based on environment
+ */
 /**
  * Main authentication middleware
  * Routes to either dev auth or Stack Auth based on environment
