@@ -5,8 +5,10 @@ import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 import { nanoid } from 'nanoid';
 
-const dbMode = (process.env.DB_MODE || 'neon').toLowerCase();
-const isSqlite = dbMode === 'sqlite-file' || dbMode === 'sqlite-memory';
+// Check if we're running in Node.js (server) or browser (client)
+// In browser, process is undefined, so we default to 'neon' mode
+const dbMode = (typeof process !== 'undefined' ? process.env.DB_MODE : 'neon') || 'neon';
+const isSqlite = dbMode.toLowerCase() === 'sqlite-file' || dbMode.toLowerCase() === 'sqlite-memory';
 
 const generateId = () => nanoid();
 

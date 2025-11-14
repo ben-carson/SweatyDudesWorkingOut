@@ -63,7 +63,10 @@ function AppWithAuth() {
   const user = stackClientApp.useUser();
   const [isSyncing, setIsSyncing] = useState(true);
   const [syncError, setSyncError] = useState<string | null>(null);
-  
+
+  // Check if we're in dev mode
+  const isDevMode = !import.meta.env.VITE_STACK_PROJECT_ID || !import.meta.env.VITE_STACK_PUBLISHABLE_CLIENT_KEY;
+
   useEffect(() => {
     if (!user) {
       setIsSyncing(false);
@@ -81,14 +84,25 @@ function AppWithAuth() {
       if (!mounted || !user) return;
 
       try {
-        // Generate username from email if not set
-        const email = user.primaryEmail || '';
-        const emailPrefix = email.split('@')[0];
-        const displayName = user.clientMetadata?.displayName || 
-                           `${user.clientMetadata?.firstName || ''} ${user.clientMetadata?.lastName || ''}`.trim() ||
-                           emailPrefix;
-        let username = emailPrefix || `user_${user.id.substring(0, 8)}`;
-        
+        // In dev mode, use simple username from displayName
+        // In production mode, generate from email
+        let username: string;
+        let displayName: string;
+
+        if (isDevMode) {
+          // Dev mode: use simple dev username
+          username = 'devuser';
+          displayName = user.displayName || 'Dev User';
+        } else {
+          // Production: generate from email
+          const email = user.primaryEmail || '';
+          const emailPrefix = email.split('@')[0];
+          displayName = user.clientMetadata?.displayName ||
+                             `${user.clientMetadata?.firstName || ''} ${user.clientMetadata?.lastName || ''}`.trim() ||
+                             emailPrefix;
+          username = emailPrefix || `user_${user.id.substring(0, 8)}`;
+        }
+
         // Sync user to database (creates if doesn't exist)
         let response = await fetch('/api/users', {
           method: 'POST',
@@ -146,7 +160,7 @@ function AppWithAuth() {
     return () => {
       mounted = false;
     };
-  }, [user?.id]);
+  }, [user?.id, isDevMode]);
   
   if (!user) {
     return (
@@ -206,6 +220,24 @@ function HandlerRoute() {
 }
 
 function App() {
+  // Check if we're in dev mode
+  const isDevMode = !import.meta.env.VITE_STACK_PROJECT_ID || !import.meta.env.VITE_STACK_PUBLISHABLE_CLIENT_KEY;
+
+  // In dev mode, skip StackProvider and StackHandler
+  if (isDevMode) {
+    return (
+      <Suspense fallback={<div className="flex items-center justify-center min-h-screen">Loading...</div>}>
+        <QueryClientProvider client={queryClient}>
+          <TooltipProvider>
+            {/* Dev mode: no Stack Auth provider needed */}
+            <AppWithAuth />
+          </TooltipProvider>
+        </QueryClientProvider>
+      </Suspense>
+    );
+  }
+
+  // Production mode: use full Stack Auth setup
   return (
     <Suspense fallback={<div className="flex items-center justify-center min-h-screen">Loading...</div>}>
       <QueryClientProvider client={queryClient}>
@@ -215,7 +247,7 @@ function App() {
               <Switch>
                 {/* Auth handler routes - must be outside auth check */}
                 <Route path="/handler/*" component={HandlerRoute} />
-                
+
                 {/* All other routes - protected by auth */}
                 <Route path="/*" component={AppWithAuth} />
               </Switch>

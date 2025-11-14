@@ -1,4 +1,5 @@
 import type { Request, Response, NextFunction } from "express";
+import { authenticateDevUser, isDevAuthMode } from "./auth-dev";
 
 interface StackAuthUser {
   id: string;
@@ -14,7 +15,25 @@ declare global {
   }
 }
 
+/**
+ * Main authentication middleware
+ * Routes to either dev auth or Stack Auth based on environment
+ */
 export async function authenticateUser(req: Request, res: Response, next: NextFunction) {
+  // Check if we're in dev auth mode (SQLite mode)
+  if (isDevAuthMode()) {
+    console.log('[Dev Auth] Using development authentication mode');
+    return authenticateDevUser(req, res, next);
+  }
+
+  // Otherwise use Stack Auth
+  return authenticateStackUser(req, res, next);
+}
+
+/**
+ * Stack Auth authentication middleware
+ */
+async function authenticateStackUser(req: Request, res: Response, next: NextFunction) {
   try {
     // Verify required environment variables
     const projectId = process.env.VITE_STACK_PROJECT_ID;
