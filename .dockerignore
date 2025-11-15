@@ -1,0 +1,48 @@
+# Dependencies
+node_modules
+npm-debug.log
+yarn-error.log
+
+# Build artifacts
+dist
+.vite
+*.tsbuildinfo
+
+# Development files
+.env
+.env.local
+.env.development
+*.log
+
+# Git
+.git
+.gitignore
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Test and CI
+.gitlab-ci.yml
+.replit
+
+# Documentation (not needed in container)
+*.md
+!README.md
+docs
+attached_assets
+exercises-loading.png
+
+# Development database
+data/*.db
+data/*.db-*
+
+# Misc
+.kiro
