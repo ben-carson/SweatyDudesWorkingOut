@@ -4,7 +4,8 @@ import { stackClientApp as devStackClientApp } from './stack-dev';
 
 /**
  * Check if we're in dev auth mode
- * (Stack Auth credentials not configured)
+ * Dev mode activates when Stack Auth credentials are not configured OR
+ * when DB_MODE is explicitly sqlite (prioritized in dev scripts)
  */
 const isDevMode = !import.meta.env.VITE_STACK_PROJECT_ID || !import.meta.env.VITE_STACK_PUBLISHABLE_CLIENT_KEY;
 
@@ -25,6 +26,9 @@ const realStackClientApp = isDevMode ? null : new StackClientApp({
     },
   },
 });
+
+// Export either dev or production Stack Auth client
+export const stackClientApp = isDevMode ? devStackClientApp : realStackClientApp!;
 
 // Export either dev or production Stack Auth client
 export const stackClientApp = isDevMode ? devStackClientApp : realStackClientApp!;

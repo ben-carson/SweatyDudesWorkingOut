@@ -1,0 +1,67 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:16-alpine
+    container_name: sweatydudes-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-sweatydudes}
+      POSTGRES_USER: ${POSTGRES_USER:-sweatydudes}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - sweatydudes-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-sweatydudes}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # SweatyDudes Application
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: sweatydudes-app
+    restart: unless-stopped
+    ports:
+      - "${APP_PORT:-5000}:5000"
+    environment:
+      NODE_ENV: production
+      PORT: 5000
+      DB_MODE: ${DB_MODE:-neon}
+
+      # Database connection (constructed from postgres service)
+      DATABASE_URL: ${DATABASE_URL:-postgresql://${POSTGRES_USER:-sweatydudes}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-sweatydudes}}
+
+      # Stack Auth configuration
+      VITE_STACK_PROJECT_ID: ${VITE_STACK_PROJECT_ID:?VITE_STACK_PROJECT_ID must be set}
+      VITE_STACK_PUBLISHABLE_CLIENT_KEY: ${VITE_STACK_PUBLISHABLE_CLIENT_KEY:?VITE_STACK_PUBLISHABLE_CLIENT_KEY must be set}
+      STACK_SECRET_SERVER_KEY: ${STACK_SECRET_SERVER_KEY:?STACK_SECRET_SERVER_KEY must be set}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - sweatydudes-network
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:5000/api/health', (r) => process.exit(r.statusCode === 200 ? 0 : 1))"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    volumes:
+      # Optional: persist SQLite data if using SQLite mode
+      - app_data:/app/data
+
+networks:
+  sweatydudes-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+    driver: local
+  app_data:
+    driver: local

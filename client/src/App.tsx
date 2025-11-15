@@ -161,7 +161,7 @@ function AppWithAuth() {
       mounted = false;
     };
   }, [user?.id, isDevMode]);
-
+  
   if (!user) {
     // In dev mode, this should never happen (always have a user)
     // In production, show sign-in prompt

@@ -6,6 +6,8 @@ import ws from "ws";
 import * as schema from "@shared/schema";
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import type { BetterSQLite3Database } from 'drizzle-orm/better-sqlite3';
+import fs from 'fs';
+import path from 'path';
 
 neonConfig.webSocketConstructor = ws;
 
@@ -61,8 +63,6 @@ function createSqliteConnection(mode: 'sqlite-file' | 'sqlite-memory'): Database
     const dbPath = process.env.SQLITE_DB_PATH || './data/app.db';
 
     // Create directory if it doesn't exist
-    const fs = require('fs');
-    const path = require('path');
     const dir = path.dirname(dbPath);
     if (!fs.existsSync(dir)) {
       fs.mkdirSync(dir, { recursive: true });
