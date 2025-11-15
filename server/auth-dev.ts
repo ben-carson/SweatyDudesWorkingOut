@@ -52,13 +52,17 @@ export async function authenticateDevUser(req: Request, res: Response, next: Nex
 
 /**
  * Check if we're in development auth mode
+ *
+ * Dev auth mode activates when DB_MODE is explicitly set to SQLite.
+ * This allows running `npm run dev:sqlite` even when Stack Auth credentials
+ * are present in .env (they'll just be ignored in SQLite mode).
  */
 export function isDevAuthMode(): boolean {
   const dbMode = (process.env.DB_MODE || 'neon').toLowerCase();
   const isSqlite = dbMode === 'sqlite-file' || dbMode === 'sqlite-memory';
-  const hasStackAuth = !!(process.env.VITE_STACK_PROJECT_ID && process.env.STACK_SECRET_SERVER_KEY);
 
-  return isSqlite && !hasStackAuth;
+  // Prioritize explicit SQLite mode - use dev auth whenever SQLite is set
+  return isSqlite;
 }
 
 export { DEFAULT_DEV_USER, DEV_USERS };
