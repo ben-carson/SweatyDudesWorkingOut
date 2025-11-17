@@ -29,6 +29,3 @@ const realStackClientApp = isDevMode ? null : new StackClientApp({
 
 // Export either dev or production Stack Auth client
 export const stackClientApp = isDevMode ? devStackClientApp : realStackClientApp!;
-
-// Export either dev or production Stack Auth client
-export const stackClientApp = isDevMode ? devStackClientApp : realStackClientApp!;
